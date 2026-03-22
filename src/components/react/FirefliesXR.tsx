@@ -1125,14 +1125,36 @@ export default function FirefliesXR() {
         updateTwoHandZoom();
       }
 
-      // ── XR: Gaze teleport animation ────────────────────────────────
+      // ── XR: Continuous gaze flight (pinch + hold = fly forward) ─────
+
+      if (inXR) {
+        // Check if any pinch is held on empty space (no post hit)
+        let isHoldingEmpty = false;
+        for (const [, state] of pinchStates) {
+          if (state.active && state.hitIdx < 0 && state.isGrabbing) {
+            const elapsed = now - state.startTime;
+            if (elapsed > TAP_THRESHOLD_MS) {
+              isHoldingEmpty = true;
+            }
+          }
+        }
+
+        if (isHoldingEmpty) {
+          // Fly forward continuously in gaze direction while pinching
+          const gazeDir = new THREE.Vector3(0, 0, -1);
+          camera.getWorldDirection(gazeDir);
+          const FLY_SPEED = 0.015; // meters per frame
+          cameraRig.position.addScaledVector(gazeDir, FLY_SPEED);
+        }
+      }
+
+      // ── XR: Gaze teleport animation (quick tap = short hop) ─────────
 
       if (inXR && isTeleporting) {
         if (teleportProgress === 0) {
           teleportStart.copy(cameraRig.position);
         }
         teleportProgress = Math.min(1, teleportProgress + TELEPORT_SPEED);
-        // Ease-out cubic for smooth deceleration
         const t = 1 - Math.pow(1 - teleportProgress, 3);
         cameraRig.position.lerpVectors(teleportStart, teleportTarget, t);
         if (teleportProgress >= 1) {
