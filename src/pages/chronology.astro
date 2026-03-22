@@ -27,12 +27,12 @@ interface RawPost {
 
 let rawPosts: RawPost[] = [];
 try {
-  const rawData = JSON.parse(
-    fs.readFileSync(path.join(process.cwd(), 'data', 'threads', 'posts.json'), 'utf-8')
-  );
+  const postsPath = path.join(process.cwd(), 'data', 'threads', 'posts.json');
+  const resolvedPath = fs.realpathSync(postsPath);
+  const rawData = JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
   rawPosts = Array.isArray(rawData) ? rawData : rawData.posts || [];
 } catch {
-  // Fallback: no raw data
+  // Raw posts unavailable — chronology charts will be empty
 }
 
 const { corpus_stats: cs, tag_distribution: td, posts: taggedPosts } = data;
