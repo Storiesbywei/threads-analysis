@@ -532,12 +532,20 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         branchesByTag.get(tag)!.push(i);
       }
 
+      // LOD: at low zoom, skip depth-3 (individual posts) — only show structure
+      const showPosts = zoom > 0.25;
+      const showParticles = zoom > 0.8;
+      const showGlow = zoom > 0.4;
+
       for (const [tag, indices] of branchesByTag) {
         const color = TAG_COLORS[tag] || '#6e7681';
         ctx.strokeStyle = color;
 
         for (const i of indices) {
           const branch = branches[i];
+
+          // LOD skip: at low zoom, only draw structural branches (depth 1-2)
+          if (!showPosts && branch.depth === 3) continue;
 
           // Spatial cull check
           const mx = (branch.from.x + branch.to.x) / 2;
@@ -631,6 +639,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
 
           // ── Surprise glow (radial glow for high surprise) ──
           if (
+            showGlow &&
             branch.surprise > 12 &&
             isHighlighted &&
             progress >= 1 &&

@@ -259,7 +259,7 @@ export function buildRadialGarden(
   }
 
   // ── 2. Place tree centers via Poisson disk sampling ──
-  const BASE_RADIUS = Math.min(canvasWidth, canvasHeight) * 0.18;
+  const BASE_RADIUS = Math.min(canvasWidth, canvasHeight) * 0.4;
 
   const disks = poissonDiskPlace(activeTags, postCounts, canvasWidth, canvasHeight, BASE_RADIUS);
   const diskMap = new Map<string, DiskCandidate>();
