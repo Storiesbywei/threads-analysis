@@ -515,27 +515,9 @@ export default function FirefliesXR() {
         isGrabbing: false,
       };
 
-      if (hitIdx >= 0) {
-        // Hit a particle — will determine tap vs hold on release or timer
-        pinchStates.set(controller, state);
-      } else {
-        // No particle hit — begin grab locomotion
-        state.isGrabbing = true;
-        pinchStates.set(controller, state);
-
-        if (!grabController) {
-          grabController = controller;
-          grabStartPos.setFromMatrixPosition(controller.matrixWorld);
-          rigStartPos.copy(cameraRig.position);
-          rigVelocity.set(0, 0, 0);
-
-          // Show motion grid for spatial feedback
-          motionGrid.visible = true;
-
-          removeActiveLabel();
-          setSelectedPost(null);
-        }
-      }
+      // Always treat as potential post selection — no grab locomotion
+      // (Vision Pro transient-pointer gives stale positions causing camera jumps)
+      pinchStates.set(controller, state);
 
       // Check for two-hand zoom
       checkTwoHandZoomStart();
