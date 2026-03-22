@@ -79,10 +79,10 @@ const FRAGMENT_SHADER = `
     float d = length(gl_PointCoord - vec2(0.5));
     if (d > 0.5) discard;
     // Soft circle with glow falloff
-    float core = 1.0 - smoothstep(0.0, 0.15, d);
+    float core = 1.0 - smoothstep(0.0, 0.2, d);
     float glow = 1.0 - smoothstep(0.0, 0.5, d);
-    float brightness = core * 0.6 + glow * 0.4;
-    gl_FragColor = vec4(vColor * brightness, brightness * vAlpha);
+    float brightness = core * 0.8 + glow * 0.5;
+    gl_FragColor = vec4(vColor * (brightness + 0.2), brightness * vAlpha * 1.3);
   }
 `;
 
@@ -189,7 +189,12 @@ export default function FirefliesView() {
       isPointerLocked = document.pointerLockElement === renderer.domElement;
     };
 
+    // Double-click to enter fly mode, single-click to select post
     const onCanvasClick = () => {
+      // Single click: don't lock pointer — let raycaster handle post selection
+    };
+
+    const onCanvasDblClick = () => {
       if (!isPointerLocked) {
         renderer.domElement.requestPointerLock();
       }
@@ -224,6 +229,7 @@ export default function FirefliesView() {
     window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     renderer.domElement.addEventListener('click', onCanvasClick);
+    renderer.domElement.addEventListener('dblclick', onCanvasDblClick);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('resize', onResize);
     window.addEventListener('keydown', onKeyDownEscape);
@@ -305,10 +311,10 @@ export default function FirefliesView() {
           colors[i * 3 + 2] = color.b;
 
           // Size from word count
-          sizes[i] = 2 + Math.sqrt(node.wordCount || 1) * 0.8;
+          sizes[i] = 4 + Math.sqrt(node.wordCount || 1) * 1.2;
 
           // Alpha/brightness from surprise
-          const alphaVal = 0.3 + Math.max(0, (surprise - 5) / 13) * 0.7;
+          const alphaVal = 0.6 + Math.max(0, (surprise - 5) / 13) * 0.4;
           alphas[i] = Math.min(1, alphaVal);
           baseAlphas[i] = alphas[i];
 
@@ -390,6 +396,12 @@ export default function FirefliesView() {
       if (keys['KeyD']) camera.position.addScaledVector(right, speed);
       if (keys['Space']) camera.position.addScaledVector(up, speed);
       if (keys['ShiftLeft'] || keys['ShiftRight']) camera.position.addScaledVector(up, -speed);
+
+      // ── Clamp camera to universe bounds ──
+      const BOUND = 600;
+      camera.position.x = Math.max(-BOUND, Math.min(BOUND, camera.position.x));
+      camera.position.y = Math.max(-BOUND, Math.min(BOUND, camera.position.y));
+      camera.position.z = Math.max(-BOUND, Math.min(BOUND, camera.position.z));
 
       // ── Animate particles ────────────────────────────────────────────
 
@@ -574,8 +586,9 @@ export default function FirefliesView() {
               lineHeight: '1.6',
             }}
           >
-            <span style={{ color: 'rgba(255,255,255,0.35)' }}>CLICK</span> to
-            lock mouse
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>DBL-CLICK</span> fly mode
+            <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>CLICK</span> select post
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>WASD</span> fly
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
