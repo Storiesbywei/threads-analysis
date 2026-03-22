@@ -298,8 +298,18 @@ export default function FirefliesXR() {
     // XR session events
     renderer.xr.addEventListener('sessionstart', () => {
       setXrActive(true);
-      // In XR, set transparent background for AR passthrough
+      // Transparent background for AR passthrough
       scene.background = null;
+      renderer.setClearColor(0x000000, 0); // fully transparent clear
+      renderer.setClearAlpha(0);
+
+      // Check environment blending mode
+      const session = renderer.xr.getSession();
+      if (session) {
+        console.log('XR environment blending:', session.environmentBlendMode);
+        // 'opaque' = VR, 'alpha-blend' = AR passthrough, 'additive' = see-through
+      }
+
       // Move camera rig so user is at center of galaxy
       cameraRig.position.set(0, 0, 0);
     });
@@ -991,14 +1001,17 @@ export default function FirefliesXR() {
       const vrSupported = await xrSystem.isSessionSupported('immersive-vr').catch(() => false);
       setXrStatus(`AR: ${arSupported}, VR: ${vrSupported}. Requesting session...`);
 
-      // Prefer AR (passthrough — posts float in your room) over VR
+      // Prefer AR (passthrough) over VR
       const mode: XRSessionMode = arSupported ? 'immersive-ar' : vrSupported ? 'immersive-vr' : 'immersive-vr';
 
+      setXrStatus(`Requesting ${mode} (AR:${arSupported} VR:${vrSupported})...`);
+
       const session = await xrSystem.requestSession(mode, {
-        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: ['bounded-floor', 'hand-tracking', 'layers'],
       });
 
-      setXrStatus(`Session started: ${mode}`);
+      setXrStatus(`Session: ${mode}, blend: ${session.environmentBlendMode}`);
       await renderer.xr.setSession(session);
       setXrStatus('');
     } catch (err) {
