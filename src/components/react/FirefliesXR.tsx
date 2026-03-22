@@ -392,6 +392,13 @@ export default function FirefliesXR() {
     let rigStartPos = new THREE.Vector3();
     let rigVelocity = new THREE.Vector3();
 
+    // Gaze teleport state
+    let isTeleporting = false;
+    let teleportProgress = 0;
+    const teleportTarget = new THREE.Vector3();
+    const teleportStart = new THREE.Vector3();
+    const TELEPORT_SPEED = 0.04; // 0→1 in ~25 frames (~0.4s)
+
     // Two-hand zoom state
     let twoHandZoomActive = false;
     let initialPinchDist = 0;
@@ -549,6 +556,15 @@ export default function FirefliesXR() {
         // Quick tap on a particle — select it
         showPostLabel(state.hitIdx);
         triggerFlash(state.hitIdx);
+      } else if (state.hitIdx < 0 && elapsed < TAP_THRESHOLD_MS) {
+        // Quick tap on empty space — gaze teleport!
+        // Fly the camera rig toward where the user is looking
+        const gazeForward = new THREE.Vector3(0, 0, -1);
+        camera.getWorldDirection(gazeForward);
+        const TELEPORT_DISTANCE = 0.8; // move 0.8m per tap in gaze direction
+        teleportTarget.copy(cameraRig.position).addScaledVector(gazeForward, TELEPORT_DISTANCE);
+        isTeleporting = true;
+        teleportProgress = 0;
       }
     }
 
@@ -1109,9 +1125,25 @@ export default function FirefliesXR() {
         updateTwoHandZoom();
       }
 
+      // ── XR: Gaze teleport animation ────────────────────────────────
+
+      if (inXR && isTeleporting) {
+        if (teleportProgress === 0) {
+          teleportStart.copy(cameraRig.position);
+        }
+        teleportProgress = Math.min(1, teleportProgress + TELEPORT_SPEED);
+        // Ease-out cubic for smooth deceleration
+        const t = 1 - Math.pow(1 - teleportProgress, 3);
+        cameraRig.position.lerpVectors(teleportStart, teleportTarget, t);
+        if (teleportProgress >= 1) {
+          isTeleporting = false;
+          teleportProgress = 0;
+        }
+      }
+
       // ── Galaxy auto-rotation (pause during manual rotation) ──────────
 
-      if (!grabController) {
+      if (!grabController && !isTeleporting) {
         galaxyGroup.rotation.y += GALAXY_AUTO_ROTATE;
       }
 
