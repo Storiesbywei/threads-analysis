@@ -1,0 +1,129 @@
+---
+export const prerender = false;
+---
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Garden Hub — Threads Analysis</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100vh; background: #0D0D0E; color: #e6edf3; font-family: -apple-system, sans-serif; }
+
+    .hub { max-width: 900px; margin: 0 auto; padding: 60px 24px; }
+    .hub h1 { font-size: 2rem; font-weight: 300; margin-bottom: 8px; letter-spacing: 0.05em; }
+    .hub .sub { color: #6e7681; font-size: 0.875rem; margin-bottom: 48px; }
+
+    .gardens { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .garden-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      color: #e6edf3;
+      transition: border-color 0.2s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .garden-card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+
+    .card-icon { font-size: 2rem; margin-bottom: 12px; }
+    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+    .card-desc { color: #8b949e; font-size: 0.8rem; line-height: 1.4; margin-bottom: 12px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .card-tag {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+    .card-count { position: absolute; top: 16px; right: 16px; font-family: monospace; font-size: 0.75rem; color: #6e7681; }
+
+    .back { display: inline-block; margin-top: 32px; color: #6e7681; font-size: 0.8rem; text-decoration: none; font-family: monospace; }
+    .back:hover { color: #58a6ff; }
+
+    @media (max-width: 640px) { .gardens { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="hub">
+    <h1>Threads Garden</h1>
+    <p class="sub">40K posts as organic L-System trees — pick a grove to explore</p>
+
+    <div class="gardens">
+      <a href="/garden/social" class="garden-card">
+        <div class="card-icon">💬</div>
+        <div class="card-title">Social Forest</div>
+        <div class="card-desc">The conversational heart — reactions, one-liners, questions, shitposts</div>
+        <div class="card-count">~26K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#d4a04a22;color:#d4a04a">reaction</span>
+          <span class="card-tag" style="background:#a0803022;color:#a08030">one-liner</span>
+          <span class="card-tag" style="background:#6d8ec422;color:#6d8ec4">question</span>
+          <span class="card-tag" style="background:#c46a3a22;color:#c46a3a">shitpost</span>
+          <span class="card-tag" style="background:#a8906022;color:#a89060">meta-social</span>
+        </div>
+      </a>
+
+      <a href="/garden/intellectual" class="garden-card">
+        <div class="card-icon">🧠</div>
+        <div class="card-title">Discourse Grove</div>
+        <div class="card-desc">Philosophy, tech, politics, race, gender — the deep branches</div>
+        <div class="card-count">~5.5K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#ab6acf22;color:#ab6acf">philosophy</span>
+          <span class="card-tag" style="background:#4db89a22;color:#4db89a">tech</span>
+          <span class="card-tag" style="background:#c4404022;color:#c44040">political</span>
+          <span class="card-tag" style="background:#c44a4a22;color:#c44a4a">race</span>
+          <span class="card-tag" style="background:#c46aaa22;color:#c46aaa">sex-gender</span>
+          <span class="card-tag" style="background:#8a8a5a22;color:#8a8a5a">commentary</span>
+        </div>
+      </a>
+
+      <a href="/garden/life" class="garden-card">
+        <div class="card-icon">🌿</div>
+        <div class="card-title">Daily Garden</div>
+        <div class="card-desc">Personal life, food, work, creativity, language — the everyday</div>
+        <div class="card-count">~4.1K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#c47a4a22;color:#c47a4a">personal</span>
+          <span class="card-tag" style="background:#7aa77122;color:#7aa771">daily-life</span>
+          <span class="card-tag" style="background:#9ec46a22;color:#9ec46a">food</span>
+          <span class="card-tag" style="background:#5a8aaa22;color:#5a8aaa">work</span>
+          <span class="card-tag" style="background:#ba5aaa22;color:#ba5aaa">creative</span>
+          <span class="card-tag" style="background:#5aaa8a22;color:#5aaa8a">language</span>
+        </div>
+      </a>
+
+      <a href="/garden/culture" class="garden-card">
+        <div class="card-icon">🎬</div>
+        <div class="card-title">Media Canopy</div>
+        <div class="card-desc">Film, TV, music, finance, shared links — the cultural layer</div>
+        <div class="card-count">~2.7K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#9a6abf22;color:#9a6abf">media</span>
+          <span class="card-tag" style="background:#4a8ac422;color:#4a8ac4">finance</span>
+          <span class="card-tag" style="background:#8aaa5a22;color:#8aaa5a">url-share</span>
+        </div>
+      </a>
+
+      <a href="/garden/interactions" class="garden-card" style="grid-column: 1 / -1;">
+        <div class="card-icon">🕸️</div>
+        <div class="card-title">Interaction Web</div>
+        <div class="card-desc">Your social graph — @mentions, replies, quotes, conversations with 398 other users growing as connected vines</div>
+        <div class="card-count">1,668 interactions</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#58a6ff22;color:#58a6ff">replies</span>
+          <span class="card-tag" style="background:#3fb95022;color:#3fb950">comments</span>
+          <span class="card-tag" style="background:#d2992222;color:#d29922">quotes</span>
+          <span class="card-tag" style="background:#ba5aaa22;color:#ba5aaa">mentions</span>
+        </div>
+      </a>
+    </div>
+
+    <a href="/" class="back">← back to dashboard</a>
+  </div>
+</body>
+</html>
