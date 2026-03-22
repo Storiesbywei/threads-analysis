@@ -238,6 +238,7 @@ export default function FirefliesXR() {
   const [xrActive, setXrActive] = useState(false);
   const [tagInfos, setTagInfos] = useState<TagInfo[]>([]);
   const [selectedPost, setSelectedPost] = useState<PostNode | null>(null);
+  const [xrStatus, setXrStatus] = useState<string>('');
 
   // Refs for animation loop
   const nodesRef = useRef<PostNode[]>([]);
@@ -982,51 +983,35 @@ export default function FirefliesXR() {
     const renderer = rendererRef.current;
 
     if (!renderer) {
-      alert('Renderer not ready yet — wait for particles to load');
+      setXrStatus('Renderer not ready — wait for particles to load');
       return;
     }
 
     if (!xrSystem) {
-      alert('WebXR not available. Enable in Settings → Safari → Advanced → Feature Flags → WebXR');
+      setXrStatus('navigator.xr is undefined — WebXR not available in this browser');
       return;
     }
 
+    setXrStatus('Checking XR support...');
+
     try {
-      // Try immersive-vr first (Vision Pro supports this), then immersive-ar
-      const modes: XRSessionMode[] = ['immersive-vr', 'immersive-ar'];
-      let session: XRSession | null = null;
+      // Check what's supported
+      const arSupported = await xrSystem.isSessionSupported('immersive-ar').catch(() => false);
+      const vrSupported = await xrSystem.isSessionSupported('immersive-vr').catch(() => false);
+      setXrStatus(`AR: ${arSupported}, VR: ${vrSupported}. Requesting session...`);
 
-      for (const mode of modes) {
-        try {
-          const supported = await xrSystem.isSessionSupported(mode);
-          if (supported) {
-            console.log(`Requesting XR session: ${mode}`);
-            session = await xrSystem.requestSession(mode, {
-              optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
-            });
-            break;
-          }
-        } catch (e) {
-          console.log(`${mode} not available:`, e);
-        }
-      }
+      const mode: XRSessionMode = vrSupported ? 'immersive-vr' : arSupported ? 'immersive-ar' : 'immersive-vr';
 
-      if (!session) {
-        // Last resort: try requesting without checking support
-        console.log('Trying immersive-vr without support check...');
-        session = await xrSystem.requestSession('immersive-vr', {
-          optionalFeatures: ['local-floor'],
-        });
-      }
+      const session = await xrSystem.requestSession(mode, {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
 
-      if (session) {
-        await renderer.xr.setSession(session);
-        console.log('XR session started!');
-      }
+      setXrStatus(`Session started: ${mode}`);
+      await renderer.xr.setSession(session);
+      setXrStatus('');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('XR session failed:', msg);
-      alert(`XR failed: ${msg}\n\nMake sure WebXR is enabled in Safari settings.`);
+      setXrStatus(`XR failed: ${msg}`);
     }
   }, []);
 
@@ -1155,6 +1140,15 @@ export default function FirefliesXR() {
           {xrSupported === false && (
             <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>
               WebXR may need to be enabled in Safari settings
+            </div>
+          )}
+          {xrStatus && (
+            <div style={{
+              fontSize: 11, fontFamily: 'monospace', color: '#58a6ff', marginTop: 8,
+              background: 'rgba(0,0,0,0.7)', padding: '6px 12px', borderRadius: 6,
+              maxWidth: 400, textAlign: 'center', lineHeight: 1.4,
+            }}>
+              {xrStatus}
             </div>
           )}
 
