@@ -393,28 +393,41 @@ export default function FirefliesView() {
 
           // Find tag center
           const tag = node.tag || 'reaction';
-          const center = tagCenters[tag] || { x: 0, y: 0, z: 0 };
+          const tagCenter = tagCenters[tag] || { x: 0, y: 0, z: 0 };
 
           // Nebula radius scales with sqrt of tag's post count
           const thisTagCount = tagCounts.get(tag) || 1;
           const nebulaRadius = BASE_NEBULA * Math.sqrt(thisTagCount / maxTagCount);
 
-          // Time fraction drives angular position (spiral within nebula)
           const timeFrac = (node.timestamp - minTs) / tsRange;
-          const timeAngle = timeFrac * 4 * Math.PI; // wraps around twice
 
-          // Spherical random position within the nebula (cube root for uniform volume)
-          const r = nebulaRadius * Math.cbrt(rng());
-          const theta = timeAngle + rng() * 0.8; // time-based angle with small jitter
-          const phi = Math.acos(2 * rng() - 1);
+          // ── BIG BANG LAYOUT ──
+          // At t=0: all posts start at origin (singularity), mixed together
+          // As t increases: posts expand outward AND separate into tag clusters
+          // At t=1: fully separated into distinct tag nebulae at the outer rim
 
-          // Surprise pushes posts outward from nebula center
+          // Interpolate between origin (0,0,0) and tag cluster center
+          // Early posts are near origin with random angles (mixed)
+          // Late posts are near their tag center (separated)
+          const separation = Math.pow(timeFrac, 0.7); // ease-in: stays mixed longer, then separates
+
+          // Target position: tag cluster center scaled by expansion
+          const targetX = tagCenter.x * separation;
+          const targetY = tagCenter.y * separation;
+          const targetZ = tagCenter.z * separation;
+
+          // Add nebula jitter (spherical, within the cluster)
+          const jitterR = nebulaRadius * Math.cbrt(rng()) * (0.3 + timeFrac * 0.7);
+          const jitterTheta = rng() * Math.PI * 2;
+          const jitterPhi = Math.acos(2 * rng() - 1);
+
+          // Surprise pushes outward from cluster center
           const surprise = node.surprise || 0;
-          const surpriseOffset = ((surprise - 8) / 10) * nebulaRadius * 0.5;
+          const surpriseOffset = ((surprise - 8) / 10) * nebulaRadius * 0.3;
 
-          const px = center.x + (r + surpriseOffset) * Math.sin(phi) * Math.cos(theta);
-          const py = center.y + (r + surpriseOffset) * Math.sin(phi) * Math.sin(theta);
-          const pz = center.z + (r + surpriseOffset) * Math.cos(phi);
+          const px = targetX + (jitterR + surpriseOffset) * Math.sin(jitterPhi) * Math.cos(jitterTheta);
+          const py = targetY + (jitterR + surpriseOffset) * Math.sin(jitterPhi) * Math.sin(jitterTheta);
+          const pz = targetZ + (jitterR + surpriseOffset) * Math.cos(jitterPhi);
 
           positions[i * 3]     = px;
           positions[i * 3 + 1] = py;
@@ -430,12 +443,12 @@ export default function FirefliesView() {
           colors[i * 3 + 1] = color.g;
           colors[i * 3 + 2] = color.b;
 
-          // Size: base + word count contribution + high-surprise bonus
-          let sz = 3 + Math.sqrt(node.wordCount || 1) * 0.5;
+          // Size: brighter/larger particles
+          let sz = 4 + Math.sqrt(node.wordCount || 1) * 1.2;
           if (surprise > 11) sz += 2; // high-surprise bonus
           sizes[i] = sz;
 
-          // Alpha/brightness from surprise
+          // Alpha/brightness — base 0.6
           const alphaVal = 0.6 + Math.max(0, (surprise - 5) / 13) * 0.4;
           alphas[i] = Math.min(1, alphaVal);
           baseAlphas[i] = alphas[i];
@@ -465,6 +478,102 @@ export default function FirefliesView() {
 
         points = new THREE.Points(geometry, material);
         scene.add(points);
+
+        // ── Post-to-post gravitational connections ──────────────────────
+        // Multi-tag posts connect to other posts that share their tags.
+        // Lines go between ACTUAL post positions, not cluster centers.
+        // Curved bezier arcs bend toward origin (gravitational pull).
+
+        const arcPositions: number[] = [];
+        const arcColors: number[] = [];
+        const CURVE_SEGMENTS = 8;
+        const MAX_CONNECTIONS = 500; // cap for performance
+
+        // Build a tag -> post indices map
+        const tagPostIndices = new Map<string, number[]>();
+        for (let i = 0; i < nodeCount; i++) {
+          const node = nodes[i];
+          if (!node.subTags) continue;
+          const parents = new Set(node.subTags.map((st: string) => st.split(':')[0]));
+          for (const tag of parents) {
+            if (!tagPostIndices.has(tag)) tagPostIndices.set(tag, []);
+            tagPostIndices.get(tag)!.push(i);
+          }
+        }
+
+        // For multi-tag posts, connect to a random post in the OTHER tag
+        let connectionCount = 0;
+        for (let i = 0; i < nodeCount && connectionCount < MAX_CONNECTIONS; i++) {
+          const node = nodes[i];
+          if (!node.subTags || node.subTags.length <= 1) continue;
+          const parents = [...new Set(node.subTags.map((st: string) => st.split(':')[0]))];
+          if (parents.length <= 1) continue;
+
+          // This post's position
+          const ax = positions[i * 3];
+          const ay = positions[i * 3 + 1];
+          const az = positions[i * 3 + 2];
+
+          // Connect to a post in each other tag
+          for (let t = 1; t < parents.length && connectionCount < MAX_CONNECTIONS; t++) {
+            const otherTag = parents[t];
+            const otherIndices = tagPostIndices.get(otherTag);
+            if (!otherIndices || otherIndices.length === 0) continue;
+
+            // Pick a nearby post (by index proximity = temporal proximity)
+            const targetIdx = otherIndices[Math.min(Math.floor(i / nodeCount * otherIndices.length), otherIndices.length - 1)];
+            const bx = positions[targetIdx * 3];
+            const by = positions[targetIdx * 3 + 1];
+            const bz = positions[targetIdx * 3 + 2];
+
+            // Curved connection with gravitational bend toward origin
+            const midX = (ax + bx) / 2;
+            const midY = (ay + by) / 2;
+            const midZ = (az + bz) / 2;
+
+            // Bend toward origin (gravitational pull from center)
+            const bendStrength = 0.15;
+            const cpx = midX * (1 - bendStrength);
+            const cpy = midY * (1 - bendStrength);
+            const cpz = midZ * (1 - bendStrength);
+
+            const color1 = new THREE.Color(TAG_COLORS[parents[0]] || '#444');
+            const color2 = new THREE.Color(TAG_COLORS[otherTag] || '#444');
+
+            for (let s = 0; s < CURVE_SEGMENTS; s++) {
+              const t0 = s / CURVE_SEGMENTS;
+              const t1 = (s + 1) / CURVE_SEGMENTS;
+              const x0 = (1-t0)*(1-t0)*ax + 2*(1-t0)*t0*cpx + t0*t0*bx;
+              const y0 = (1-t0)*(1-t0)*ay + 2*(1-t0)*t0*cpy + t0*t0*by;
+              const z0 = (1-t0)*(1-t0)*az + 2*(1-t0)*t0*cpz + t0*t0*bz;
+              const x1 = (1-t1)*(1-t1)*ax + 2*(1-t1)*t1*cpx + t1*t1*bx;
+              const y1 = (1-t1)*(1-t1)*ay + 2*(1-t1)*t1*cpy + t1*t1*by;
+              const z1 = (1-t1)*(1-t1)*az + 2*(1-t1)*t1*cpz + t1*t1*bz;
+
+              arcPositions.push(x0, y0, z0, x1, y1, z1);
+              const r0 = color1.r + (color2.r - color1.r) * t0;
+              const g0 = color1.g + (color2.g - color1.g) * t0;
+              const b0 = color1.b + (color2.b - color1.b) * t0;
+              arcColors.push(r0, g0, b0, r0, g0, b0);
+            }
+            connectionCount++;
+          }
+        }
+
+        if (arcPositions.length > 0) {
+          const arcGeo = new THREE.BufferGeometry();
+          arcGeo.setAttribute('position', new THREE.Float32BufferAttribute(arcPositions, 3));
+          arcGeo.setAttribute('color', new THREE.Float32BufferAttribute(arcColors, 3));
+          const arcMat = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.03,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const arcLines = new THREE.LineSegments(arcGeo, arcMat);
+          scene.add(arcLines);
+        }
 
         setLoading(false);
       } catch (err: any) {

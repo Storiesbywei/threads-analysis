@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { XRButton } from 'three/examples/jsm/webxr/XRButton.js';
+import { XRHandModelFactory } from 'three/examples/jsm/webxr/XRHandModelFactory.js';
 import { TAG_COLORS } from '../../lib/colors';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -37,6 +38,15 @@ const DRIFT_SPEED = 0.5;
 const BLINK_AMPLITUDE = 0.1;
 const BLINK_SPEED = 0.7;
 const GALAXY_AUTO_ROTATE = 0.00015;  // very slow spin (rad/frame)
+
+// XR interaction constants
+const TAP_THRESHOLD_MS = 300;        // < 300ms pinch = tap, > 300ms = hold
+const GRAB_MOVE_SCALE = 3;           // 3x hand movement = 3x camera movement
+const GRAB_DAMPING = 0.85;           // smooth damping for grab locomotion
+const ZOOM_SCALE_MIN = 0.2;          // minimum galaxy scale (zoomed out)
+const ZOOM_SCALE_MAX = 5.0;          // maximum galaxy scale (zoomed in)
+const HIGHLIGHT_RADIUS = 0.5;        // meters — radius for proximity highlight
+const FLASH_DURATION_MS = 300;       // flash brightness on selection
 
 // Non-XR orbit constants
 const ORBIT_RADIUS_INIT = 6;
@@ -328,15 +338,35 @@ export default function FirefliesXR() {
     scene.add(controller0);
     scene.add(controller1);
 
-    // Raycaster for XR controller selection
+    // ── Hand Model Rendering ──────────────────────────────────────────
+    // On Vision Pro, users cannot see their hands unless we render them.
+    const handModelFactory = new XRHandModelFactory();
+
+    const hand0 = renderer.xr.getHand(0);
+    const hand1 = renderer.xr.getHand(1);
+
+    const handModel0 = handModelFactory.createHandModel(hand0, 'mesh');
+    hand0.add(handModel0);
+    scene.add(hand0);
+
+    const handModel1 = handModelFactory.createHandModel(hand1, 'mesh');
+    hand1.add(handModel1);
+    scene.add(hand1);
+
+    // ── XR Raycaster ──────────────────────────────────────────────────
+
     const xrRaycaster = new THREE.Raycaster();
     xrRaycaster.params.Points = { threshold: 0.08 }; // 8cm threshold in meters
 
-    // Temporary vectors for reuse
+    // Reusable vectors (allocate once, never in hot path)
     const tempMatrix = new THREE.Matrix4();
     const rayDirection = new THREE.Vector3(0, 0, -1);
+    const _grabCurrentPos = new THREE.Vector3();
+    const _grabDelta = new THREE.Vector3();
+    const _dampedRigTarget = new THREE.Vector3();
 
-    // Active label sprite in scene
+    // ── Active Label State ────────────────────────────────────────────
+
     let activeLabel: THREE.Sprite | null = null;
     let activeLabelTargetIdx = -1;
 
@@ -352,62 +382,263 @@ export default function FirefliesXR() {
       }
     }
 
+    // ── Pinch Interaction State (per-controller) ──────────────────────
+
+    interface PinchState {
+      active: boolean;
+      startTime: number;
+      startPos: THREE.Vector3;
+      controller: THREE.Object3D;
+      hitIdx: number;             // particle index hit on selectstart, or -1
+      isGrabbing: boolean;        // true if no particle was hit (locomotion mode)
+    }
+
+    const pinchStates: Map<THREE.Object3D, PinchState> = new Map();
+
     // Grab locomotion state
-    let isGrabbing = false;
+    let grabController: THREE.Object3D | null = null;
     let grabStartPos = new THREE.Vector3();
     let rigStartPos = new THREE.Vector3();
+    let rigVelocity = new THREE.Vector3();
 
-    function onSelectStart(event: { target: THREE.Object3D }) {
-      if (!renderer.xr.isPresenting || !points) return;
+    // Two-hand zoom state
+    let twoHandZoomActive = false;
+    let initialPinchDist = 0;
+    let initialGalaxyScale = 1;
 
-      const controller = event.target;
+    // Visual feedback: flash state
+    let flashIdx = -1;
+    let flashStartTime = 0;
 
-      // Cast ray from controller
+    // ── Motion grid for grab feedback ─────────────────────────────────
+
+    const gridSize = 4;     // 4m x 4m grid
+    const gridDivs = 20;
+    const motionGrid = new THREE.GridHelper(gridSize, gridDivs, 0x1a1a3a, 0x0a0a1a);
+    motionGrid.visible = false;
+    motionGrid.position.y = -0.5; // slightly below floor level
+    (motionGrid.material as THREE.Material).transparent = true;
+    (motionGrid.material as THREE.Material).opacity = 0.3;
+    cameraRig.add(motionGrid); // moves with the rig
+
+    // ── Selection helpers ─────────────────────────────────────────────
+
+    function raycastFromController(controller: THREE.Object3D): number {
+      if (!points) return -1;
+
       tempMatrix.identity().extractRotation(controller.matrixWorld);
       xrRaycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
       xrRaycaster.ray.direction.copy(rayDirection).applyMatrix4(tempMatrix);
 
       const intersections = xrRaycaster.intersectObject(points);
-
       if (intersections.length > 0) {
         const idx = intersections[0].index;
         if (idx !== undefined && idx < nodesRef.current.length) {
-          const node = nodesRef.current[idx];
-          setSelectedPost(node);
-
-          // Show floating label at intersection point
-          removeActiveLabel();
-          const tagColor = TAG_COLORS[node.tag] || '#8b949e';
-          const labelText = `[${node.tag}] ${node.textPreview || '(no text)'}`;
-          activeLabel = createTextSprite(labelText, {
-            fontSize: 24,
-            color: tagColor,
-            maxWidth: 480,
-          });
-
-          // Position label slightly above the hit point
-          const hitPos = intersections[0].point;
-          activeLabel.position.set(hitPos.x, hitPos.y + 0.15, hitPos.z);
-          activeLabelTargetIdx = idx;
-          scene.add(activeLabel);
+          return idx;
         }
+      }
+      return -1;
+    }
+
+    function showPostLabel(idx: number) {
+      const node = nodesRef.current[idx];
+      if (!node) return;
+
+      setSelectedPost(node);
+      removeActiveLabel();
+
+      const tagColor = TAG_COLORS[node.tag] || '#8b949e';
+      const labelText = `[${node.tag}] ${node.textPreview || '(no text)'}`;
+      activeLabel = createTextSprite(labelText, {
+        fontSize: 24,
+        color: tagColor,
+        maxWidth: 480,
+      });
+
+      // Position label slightly above the particle
+      if (geometry) {
+        const posArray = geometry.attributes.position.array as Float32Array;
+        const localPos = new THREE.Vector3(
+          posArray[idx * 3],
+          posArray[idx * 3 + 1] + 0.15,
+          posArray[idx * 3 + 2],
+        );
+        galaxyGroup.localToWorld(localPos);
+        activeLabel.position.copy(localPos);
+      }
+      activeLabelTargetIdx = idx;
+      scene.add(activeLabel);
+    }
+
+    function showExpandedTooltip(idx: number) {
+      const node = nodesRef.current[idx];
+      if (!node) return;
+
+      setSelectedPost(node);
+      removeActiveLabel();
+
+      const tagColor = TAG_COLORS[node.tag] || '#8b949e';
+      // Expanded detail: tag, full text preview, date, word count, surprise
+      const dateStr = new Date(node.timestamp).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+      const labelText = `[${node.tag}] ${node.textPreview || '(no text)'}\n${dateStr} | ${node.wordCount}w | ${node.surprise.toFixed(1)} bits`;
+      activeLabel = createTextSprite(labelText, {
+        fontSize: 22,
+        color: tagColor,
+        maxWidth: 512,
+      });
+
+      if (geometry) {
+        const posArray = geometry.attributes.position.array as Float32Array;
+        const localPos = new THREE.Vector3(
+          posArray[idx * 3],
+          posArray[idx * 3 + 1] + 0.2,
+          posArray[idx * 3 + 2],
+        );
+        galaxyGroup.localToWorld(localPos);
+        activeLabel.position.copy(localPos);
+      }
+      activeLabelTargetIdx = idx;
+      scene.add(activeLabel);
+    }
+
+    function triggerFlash(idx: number) {
+      flashIdx = idx;
+      flashStartTime = performance.now();
+    }
+
+    // ── selectstart: begin pinch ──────────────────────────────────────
+
+    function onSelectStart(event: { target: THREE.Object3D }) {
+      if (!renderer.xr.isPresenting || !points) return;
+
+      const controller = event.target;
+      const hitIdx = raycastFromController(controller);
+
+      const state: PinchState = {
+        active: true,
+        startTime: performance.now(),
+        startPos: new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld),
+        controller,
+        hitIdx,
+        isGrabbing: false,
+      };
+
+      if (hitIdx >= 0) {
+        // Hit a particle — will determine tap vs hold on release or timer
+        pinchStates.set(controller, state);
       } else {
-        // No particle hit — start grab locomotion
-        isGrabbing = true;
-        grabStartPos.setFromMatrixPosition(controller.matrixWorld);
-        rigStartPos.copy(cameraRig.position);
-        removeActiveLabel();
-        setSelectedPost(null);
+        // No particle hit — begin grab locomotion
+        state.isGrabbing = true;
+        pinchStates.set(controller, state);
+
+        if (!grabController) {
+          grabController = controller;
+          grabStartPos.setFromMatrixPosition(controller.matrixWorld);
+          rigStartPos.copy(cameraRig.position);
+          rigVelocity.set(0, 0, 0);
+
+          // Show motion grid for spatial feedback
+          motionGrid.visible = true;
+
+          removeActiveLabel();
+          setSelectedPost(null);
+        }
+      }
+
+      // Check for two-hand zoom
+      checkTwoHandZoomStart();
+    }
+
+    // ── select (quick pinch+release = tap) ────────────────────────────
+
+    function onSelect(event: { target: THREE.Object3D }) {
+      if (!renderer.xr.isPresenting) return;
+
+      const controller = event.target;
+      const state = pinchStates.get(controller);
+      if (!state) return;
+
+      const elapsed = performance.now() - state.startTime;
+
+      if (state.hitIdx >= 0 && elapsed < TAP_THRESHOLD_MS) {
+        // Quick tap on a particle — select it
+        showPostLabel(state.hitIdx);
+        triggerFlash(state.hitIdx);
       }
     }
 
-    function onSelectEnd() {
-      isGrabbing = false;
+    // ── selectend: release pinch ──────────────────────────────────────
+
+    function onSelectEnd(event: { target: THREE.Object3D }) {
+      if (!renderer.xr.isPresenting) return;
+
+      const controller = event.target;
+      const state = pinchStates.get(controller);
+
+      if (state) {
+        // End grab locomotion if this was the grab controller
+        if (state.isGrabbing && grabController === controller) {
+          grabController = null;
+          motionGrid.visible = false;
+        }
+
+        pinchStates.delete(controller);
+      }
+
+      // Reset two-hand zoom when either hand releases
+      twoHandZoomActive = false;
+      initialPinchDist = 0;
     }
 
+    // ── Two-hand zoom helpers ─────────────────────────────────────────
+
+    function checkTwoHandZoomStart() {
+      // Need both controllers actively pinching
+      const states = Array.from(pinchStates.values());
+      if (states.length === 2) {
+        twoHandZoomActive = true;
+        initialPinchDist = 0; // will be set on first frame with valid positions
+        initialGalaxyScale = galaxyGroup.scale.x;
+      }
+    }
+
+    function updateTwoHandZoom() {
+      if (!twoHandZoomActive) return;
+
+      const states = Array.from(pinchStates.values());
+      if (states.length !== 2) {
+        twoHandZoomActive = false;
+        return;
+      }
+
+      const pos0 = new THREE.Vector3().setFromMatrixPosition(states[0].controller.matrixWorld);
+      const pos1 = new THREE.Vector3().setFromMatrixPosition(states[1].controller.matrixWorld);
+      const currentDist = pos0.distanceTo(pos1);
+
+      if (initialPinchDist === 0) {
+        // First frame — capture initial distance
+        initialPinchDist = currentDist;
+        initialGalaxyScale = galaxyGroup.scale.x;
+      } else {
+        const scaleFactor = currentDist / initialPinchDist;
+        const newScale = THREE.MathUtils.clamp(
+          initialGalaxyScale * scaleFactor,
+          ZOOM_SCALE_MIN,
+          ZOOM_SCALE_MAX,
+        );
+        galaxyGroup.scale.setScalar(newScale);
+      }
+    }
+
+    // ── Register controller events ────────────────────────────────────
+
     controller0.addEventListener('selectstart', onSelectStart);
+    controller0.addEventListener('select', onSelect);
     controller0.addEventListener('selectend', onSelectEnd);
     controller1.addEventListener('selectstart', onSelectStart);
+    controller1.addEventListener('select', onSelect);
     controller1.addEventListener('selectend', onSelectEnd);
 
     // ── Keyboard controls (WASD always active) ────────────────────────────
@@ -837,14 +1068,41 @@ export default function FirefliesXR() {
 
       const inXR = renderer.xr.isPresenting;
 
-      // ── Grab locomotion in XR ─────────────────────────────────────────
+      // ── XR: Hold detection (> 300ms = show expanded tooltip) ────────
 
-      if (inXR && isGrabbing) {
-        const currentPos = new THREE.Vector3();
-        currentPos.setFromMatrixPosition(controller0.matrixWorld);
-        const delta = new THREE.Vector3().subVectors(grabStartPos, currentPos);
-        // Scale movement for comfortable travel
-        cameraRig.position.copy(rigStartPos).add(delta.multiplyScalar(3));
+      if (inXR) {
+        const nowMs = performance.now();
+        for (const [, state] of pinchStates) {
+          if (state.active && state.hitIdx >= 0 && !state.isGrabbing) {
+            const elapsed = nowMs - state.startTime;
+            if (elapsed > TAP_THRESHOLD_MS) {
+              // Long hold on a particle — show expanded tooltip
+              showExpandedTooltip(state.hitIdx);
+              triggerFlash(state.hitIdx);
+              // Mark as handled so we don't re-trigger
+              state.hitIdx = -1;
+            }
+          }
+        }
+      }
+
+      // ── XR: Grab locomotion with damping ────────────────────────────
+
+      if (inXR && grabController) {
+        _grabCurrentPos.setFromMatrixPosition(grabController.matrixWorld);
+        _grabDelta.subVectors(grabStartPos, _grabCurrentPos);
+
+        // Target position = starting rig position + scaled delta
+        _dampedRigTarget.copy(rigStartPos).add(_grabDelta.multiplyScalar(GRAB_MOVE_SCALE));
+
+        // Smooth damping — interpolate toward target
+        cameraRig.position.lerp(_dampedRigTarget, 1.0 - GRAB_DAMPING);
+      }
+
+      // ── XR: Two-hand pinch-to-zoom ──────────────────────────────────
+
+      if (inXR && twoHandZoomActive) {
+        updateTwoHandZoom();
       }
 
       // ── Galaxy auto-rotation ──────────────────────────────────────────
@@ -878,6 +1136,28 @@ export default function FirefliesXR() {
       if (geometry && phases && basePositions && baseAlphas) {
         const posArray = geometry.attributes.position.array as Float32Array;
         const alphaArray = geometry.attributes.alpha.array as Float32Array;
+        const sizeArray = geometry.attributes.size.array as Float32Array;
+
+        // Flash decay factor (0.0 = no flash, 1.0 = full flash)
+        const flashElapsed = now - flashStartTime;
+        const flashFactor = flashIdx >= 0 && flashElapsed < FLASH_DURATION_MS
+          ? 1.0 - (flashElapsed / FLASH_DURATION_MS)
+          : 0;
+        if (flashElapsed >= FLASH_DURATION_MS) flashIdx = -1;
+
+        // Proximity highlight: find the controller's gaze target for nearby particles
+        let gazeOrigin: THREE.Vector3 | null = null;
+        let gazeDir: THREE.Vector3 | null = null;
+        if (inXR && pinchStates.size > 0) {
+          // Use the first active pinch controller's ray for proximity highlight
+          const firstState = pinchStates.values().next().value;
+          if (firstState && firstState.controller) {
+            const _tempM = new THREE.Matrix4();
+            _tempM.identity().extractRotation(firstState.controller.matrixWorld);
+            gazeOrigin = new THREE.Vector3().setFromMatrixPosition(firstState.controller.matrixWorld);
+            gazeDir = new THREE.Vector3(0, 0, -1).applyMatrix4(_tempM);
+          }
+        }
 
         for (let i = 0; i < nodeCount; i++) {
           const phase = phases[i];
@@ -889,12 +1169,48 @@ export default function FirefliesXR() {
             Math.cos(time * DRIFT_SPEED * 0.9 + phase * 0.8) * DRIFT_AMPLITUDE;
 
           // Brightness pulse (firefly blinking)
-          alphaArray[i] = baseAlphas[i] +
+          let alpha = baseAlphas[i] +
             Math.sin(time * BLINK_SPEED + phase * 3) * BLINK_AMPLITUDE;
+
+          // Flash selected particle brighter momentarily
+          if (i === flashIdx && flashFactor > 0) {
+            alpha = Math.min(1.0, alpha + flashFactor * 0.6);
+            // Temporarily increase size for visual pop
+            sizeArray[i] = sizeArray[i] + flashFactor * 0.04;
+          }
+
+          // Proximity highlight: boost brightness of particles near the gaze ray
+          if (gazeOrigin && gazeDir) {
+            const pWorld = new THREE.Vector3(
+              posArray[i * 3],
+              posArray[i * 3 + 1],
+              posArray[i * 3 + 2],
+            );
+            galaxyGroup.localToWorld(pWorld);
+
+            // Vector from gaze origin to particle
+            const toP = pWorld.clone().sub(gazeOrigin);
+            const tProj = toP.dot(gazeDir);
+
+            // Only consider particles in front of the gaze
+            if (tProj > 0) {
+              // Closest point on ray to particle
+              const proj = gazeDir.clone().multiplyScalar(tProj).add(gazeOrigin);
+              const perpDist = proj.distanceTo(pWorld);
+
+              if (perpDist < HIGHLIGHT_RADIUS) {
+                const closeness = 1.0 - (perpDist / HIGHLIGHT_RADIUS);
+                alpha = Math.min(1.0, alpha + closeness * 0.25);
+              }
+            }
+          }
+
+          alphaArray[i] = alpha;
         }
 
         geometry.attributes.position.needsUpdate = true;
         geometry.attributes.alpha.needsUpdate = true;
+        geometry.attributes.size.needsUpdate = true;
       }
 
       // ── Make tag labels face camera (billboard) ────────────────────────
@@ -943,9 +1259,15 @@ export default function FirefliesXR() {
       window.removeEventListener('resize', onResize);
 
       controller0.removeEventListener('selectstart', onSelectStart);
+      controller0.removeEventListener('select', onSelect);
       controller0.removeEventListener('selectend', onSelectEnd);
       controller1.removeEventListener('selectstart', onSelectStart);
+      controller1.removeEventListener('select', onSelect);
       controller1.removeEventListener('selectend', onSelectEnd);
+
+      // Dispose hand models
+      scene.remove(hand0);
+      scene.remove(hand1);
 
       removeActiveLabel();
       for (const label of tagLabels) {
@@ -999,12 +1321,12 @@ export default function FirefliesXR() {
       // Check what's supported
       const arSupported = await xrSystem.isSessionSupported('immersive-ar').catch(() => false);
       const vrSupported = await xrSystem.isSessionSupported('immersive-vr').catch(() => false);
-      setXrStatus(`AR: ${arSupported}, VR: ${vrSupported}. Requesting session...`);
+      setXrStatus('Entering spatial view...');
 
       // Prefer AR (passthrough) over VR
       const mode: XRSessionMode = arSupported ? 'immersive-ar' : vrSupported ? 'immersive-vr' : 'immersive-vr';
 
-      setXrStatus(`Requesting ${mode} (AR:${arSupported} VR:${vrSupported})...`);
+      setXrStatus(`Requesting ${mode === 'immersive-ar' ? 'AR' : 'spatial'} session...`);
 
       const session = await xrSystem.requestSession(mode, {
         requiredFeatures: ['local-floor'],
