@@ -354,6 +354,7 @@ export default function FirefliesXR() {
     const _grabCurrentPos = new THREE.Vector3();
     const _grabDelta = new THREE.Vector3();
     const _dampedRigTarget = new THREE.Vector3();
+    const _tempVec = new THREE.Vector3(); // reusable for gaze proximity checks
 
     // ── Active Label State ────────────────────────────────────────────
 
@@ -1133,18 +1134,17 @@ export default function FirefliesXR() {
           : 0;
         if (flashElapsed >= FLASH_DURATION_MS) flashIdx = -1;
 
-        // Proximity highlight: find the controller's gaze target for nearby particles
+        // Gaze proximity glow: always follows head direction (approximates eye tracking)
+        // In XR, camera direction = where user is looking (head tracking)
+        // Particles near the gaze ray glow brighter — visual cursor
         let gazeOrigin: THREE.Vector3 | null = null;
         let gazeDir: THREE.Vector3 | null = null;
-        if (inXR && pinchStates.size > 0) {
-          // Use the first active pinch controller's ray for proximity highlight
-          const firstState = pinchStates.values().next().value;
-          if (firstState && firstState.controller) {
-            const _tempM = new THREE.Matrix4();
-            _tempM.identity().extractRotation(firstState.controller.matrixWorld);
-            gazeOrigin = new THREE.Vector3().setFromMatrixPosition(firstState.controller.matrixWorld);
-            gazeDir = new THREE.Vector3(0, 0, -1).applyMatrix4(_tempM);
-          }
+        if (inXR) {
+          // Camera world position and direction = head tracking
+          gazeOrigin = new THREE.Vector3();
+          camera.getWorldPosition(gazeOrigin);
+          gazeDir = new THREE.Vector3(0, 0, -1);
+          camera.getWorldDirection(gazeDir);
         }
 
         for (let i = 0; i < nodeCount; i++) {
@@ -1168,27 +1168,25 @@ export default function FirefliesXR() {
           }
 
           // Proximity highlight: boost brightness of particles near the gaze ray
-          if (gazeOrigin && gazeDir) {
-            const pWorld = new THREE.Vector3(
-              posArray[i * 3],
-              posArray[i * 3 + 1],
-              posArray[i * 3 + 2],
-            );
-            galaxyGroup.localToWorld(pWorld);
+          // (acts as visual gaze cursor — particles glow when you look at them)
+          if (gazeOrigin && gazeDir && i % 2 === 0) {
+            // Check every other particle for performance (40K/frame is heavy)
+            _tempVec.set(posArray[i * 3], posArray[i * 3 + 1], posArray[i * 3 + 2]);
+            galaxyGroup.localToWorld(_tempVec);
 
-            // Vector from gaze origin to particle
-            const toP = pWorld.clone().sub(gazeOrigin);
-            const tProj = toP.dot(gazeDir);
+            _tempVec.sub(gazeOrigin);
+            const tProj = _tempVec.dot(gazeDir);
 
-            // Only consider particles in front of the gaze
-            if (tProj > 0) {
-              // Closest point on ray to particle
-              const proj = gazeDir.clone().multiplyScalar(tProj).add(gazeOrigin);
-              const perpDist = proj.distanceTo(pWorld);
+            if (tProj > 0 && tProj < 5) { // only check particles within 5m
+              // perpendicular distance to ray
+              const perpSq = _tempVec.lengthSq() - tProj * tProj;
+              const hrSq = HIGHLIGHT_RADIUS * HIGHLIGHT_RADIUS;
 
-              if (perpDist < HIGHLIGHT_RADIUS) {
-                const closeness = 1.0 - (perpDist / HIGHLIGHT_RADIUS);
-                alpha = Math.min(1.0, alpha + closeness * 0.25);
+              if (perpSq < hrSq) {
+                const closeness = 1.0 - Math.sqrt(perpSq) / HIGHLIGHT_RADIUS;
+                alpha = Math.min(1.0, alpha + closeness * 0.4);
+                // Also bump size slightly for glow cursor effect
+                sizeArray[i] = sizeArray[i] + closeness * 0.02;
               }
             }
           }
