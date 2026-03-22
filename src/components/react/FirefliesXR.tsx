@@ -322,6 +322,8 @@ export default function FirefliesXR() {
 
       // Move camera rig so user is at center of galaxy
       cameraRig.position.set(0, 0, 0);
+      reticle.visible = true;
+      reticleDot.visible = true;
     });
 
     renderer.xr.addEventListener('sessionend', () => {
@@ -329,7 +331,39 @@ export default function FirefliesXR() {
       scene.background = new THREE.Color(BG);
       cameraRig.position.set(0, 0, 0);
       camera.position.set(0, 1.6, ORBIT_RADIUS_INIT);
+      reticle.visible = false;
+      reticleDot.visible = false;
     });
+
+    // ── Gaze reticle (always visible in XR — shows where you're looking) ──
+
+    const reticleGeo = new THREE.RingGeometry(0.008, 0.012, 24);
+    const reticleMat = new THREE.MeshBasicMaterial({
+      color: 0x58a6ff,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    const reticle = new THREE.Mesh(reticleGeo, reticleMat);
+    reticle.visible = false; // only show in XR
+    // Attach to camera so it follows gaze, positioned 1m ahead
+    camera.add(reticle);
+    reticle.position.set(0, 0, -1);
+
+    // Small center dot
+    const dotGeo = new THREE.CircleGeometry(0.003, 16);
+    const dotMat = new THREE.MeshBasicMaterial({
+      color: 0x58a6ff,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    const reticleDot = new THREE.Mesh(dotGeo, dotMat);
+    camera.add(reticleDot);
+    reticleDot.position.set(0, 0, -1);
+    reticleDot.visible = false;
 
     // ── XR Controllers (gaze + pinch on Vision Pro) ─────────────────────
 
@@ -1123,6 +1157,32 @@ export default function FirefliesXR() {
 
       if (inXR && twoHandZoomActive) {
         updateTwoHandZoom();
+      }
+
+      // ── XR: Update gaze reticle color ──────────────────────────────
+
+      if (inXR && points) {
+        // Raycast from camera center to check if aimed at a particle
+        const gazeRay = new THREE.Vector3(0, 0, -1);
+        camera.getWorldDirection(gazeRay);
+        const gazePos = new THREE.Vector3();
+        camera.getWorldPosition(gazePos);
+        xrRaycaster.set(gazePos, gazeRay);
+        const hits = xrRaycaster.intersectObject(points);
+
+        if (hits.length > 0) {
+          // Aimed at a particle — green reticle
+          reticleMat.color.setHex(0x3fb950);
+          reticleMat.opacity = 0.8;
+          dotMat.color.setHex(0x3fb950);
+          dotMat.opacity = 0.6;
+        } else {
+          // Empty space — blue reticle
+          reticleMat.color.setHex(0x58a6ff);
+          reticleMat.opacity = 0.4;
+          dotMat.color.setHex(0x58a6ff);
+          dotMat.opacity = 0.3;
+        }
       }
 
       // ── XR: Continuous gaze flight (pinch + hold = fly forward) ─────
