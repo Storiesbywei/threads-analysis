@@ -13,8 +13,15 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 
-const key = fs.readFileSync(path.join(ROOT, 'certs', 'key.pem'));
-const cert = fs.readFileSync(path.join(ROOT, 'certs', 'cert.pem'));
+// Try mkcert certs first (locally trusted), fall back to self-signed
+const certDir = path.join(ROOT, 'certs');
+const mkcertKey = path.join(certDir, '10.0.0.82+2-key.pem');
+const mkcertCert = path.join(certDir, '10.0.0.82+2.pem');
+const selfKey = path.join(certDir, 'key.pem');
+const selfCert = path.join(certDir, 'cert.pem');
+
+const key = fs.readFileSync(fs.existsSync(mkcertKey) ? mkcertKey : selfKey);
+const cert = fs.readFileSync(fs.existsSync(mkcertCert) ? mkcertCert : selfCert);
 
 const PROXY_PORT = 4443;
 const TARGET = 'http://localhost:4323';

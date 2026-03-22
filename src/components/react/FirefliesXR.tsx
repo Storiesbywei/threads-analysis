@@ -289,15 +289,7 @@ export default function FirefliesXR() {
         if (disposed) return;
         const supported = arSupported || vrSupported;
         setXrSupported(supported);
-        if (supported) {
-          // XRButton handles AR/VR mode selection internally
-          const xrButton = XRButton.createButton(renderer, {
-            optionalFeatures: ['bounded-floor', 'hand-tracking'],
-          });
-          xrButton.id = 'xr-button-internal';
-          xrButton.style.display = 'none'; // we use our own button
-          document.body.appendChild(xrButton);
-        }
+        // We use our own ENTER XR button — no hidden XRButton needed
       });
     } else {
       setXrSupported(false);
@@ -967,8 +959,7 @@ export default function FirefliesXR() {
       renderer.setAnimationLoop(null);
       renderer.dispose();
 
-      const xrBtn = document.getElementById('xr-button-internal');
-      if (xrBtn) xrBtn.remove();
+      // cleanup complete
 
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -1000,7 +991,8 @@ export default function FirefliesXR() {
       const vrSupported = await xrSystem.isSessionSupported('immersive-vr').catch(() => false);
       setXrStatus(`AR: ${arSupported}, VR: ${vrSupported}. Requesting session...`);
 
-      const mode: XRSessionMode = vrSupported ? 'immersive-vr' : arSupported ? 'immersive-ar' : 'immersive-vr';
+      // Prefer AR (passthrough — posts float in your room) over VR
+      const mode: XRSessionMode = arSupported ? 'immersive-ar' : vrSupported ? 'immersive-vr' : 'immersive-vr';
 
       const session = await xrSystem.requestSession(mode, {
         optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
