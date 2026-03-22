@@ -270,6 +270,9 @@ export default function FirefliesXR() {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
 
+    // Store renderer ref on canvas so XR handler can access it
+    (renderer.domElement as any).__threejs_renderer = renderer;
+
     // ── WebXR setup ──────────────────────────────────────────────────────
 
     renderer.xr.enabled = true;
@@ -950,10 +953,37 @@ export default function FirefliesXR() {
 
   // ── Enter XR handler ────────────────────────────────────────────────────
 
-  const handleEnterXR = useCallback(() => {
-    const xrBtn = document.getElementById('xr-button-internal');
-    if (xrBtn) {
-      xrBtn.click();
+  const handleEnterXR = useCallback(async () => {
+    // Request XR session directly — must be from user gesture (not programmatic click)
+    const xrSystem = navigator.xr;
+    if (!xrSystem) return;
+
+    try {
+      // Try immersive-ar first (Vision Pro passthrough), fall back to VR
+      let session: XRSession | null = null;
+      const arSupported = await xrSystem.isSessionSupported('immersive-ar');
+      const vrSupported = await xrSystem.isSessionSupported('immersive-vr');
+
+      const mode = arSupported ? 'immersive-ar' : vrSupported ? 'immersive-vr' : null;
+      if (!mode) {
+        console.error('No XR mode supported');
+        return;
+      }
+
+      session = await xrSystem.requestSession(mode, {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
+      });
+
+      // Find the renderer in the DOM and set the session
+      const canvas = document.querySelector('canvas');
+      if (canvas) {
+        const renderer = (canvas as any).__threejs_renderer;
+        if (renderer) {
+          await renderer.xr.setSession(session);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to start XR session:', err);
     }
   }, []);
 
