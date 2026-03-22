@@ -552,24 +552,43 @@ export default function FirefliesXR() {
           const rng = mulberry32(seed);
 
           const tag = node.tag || 'reaction';
-          const center = tagCenters[tag] || { x: 0, y: 0, z: 0 };
+          const tagCenter = tagCenters[tag] || { x: 0, y: 0, z: 0 };
 
           const thisTagCount = tagCounts.get(tag) || 1;
           const nebulaRadius = BASE_NEBULA * Math.sqrt(thisTagCount / maxTagCount);
 
           const timeFrac = (node.timestamp - minTs) / tsRange;
-          const timeAngle = timeFrac * 4 * Math.PI;
 
-          const r = nebulaRadius * Math.cbrt(rng());
-          const theta = timeAngle + rng() * 0.8;
-          const phi = Math.acos(2 * rng() - 1);
+          // ── BIG BANG LAYOUT ──
+          // At t=0: all posts start at origin (singularity), mixed together
+          // As t increases: posts expand outward AND separate into tag clusters
+          // At t=1: fully separated into distinct tag nebulae at the outer rim
 
+          // Radial distance from center = time (expanding universe)
+          const expansionRadius = SPHERE_RADIUS * timeFrac;
+
+          // Interpolate between origin (0,0,0) and tag cluster center
+          // Early posts are near origin with random angles (mixed)
+          // Late posts are near their tag center (separated)
+          const separation = Math.pow(timeFrac, 0.7); // ease-in: stays mixed longer, then separates
+
+          // Target position: tag cluster center scaled by expansion
+          const targetX = tagCenter.x * separation;
+          const targetY = tagCenter.y * separation;
+          const targetZ = tagCenter.z * separation;
+
+          // Add nebula jitter (spherical, within the cluster)
+          const jitterR = nebulaRadius * Math.cbrt(rng()) * (0.3 + timeFrac * 0.7);
+          const jitterTheta = rng() * Math.PI * 2;
+          const jitterPhi = Math.acos(2 * rng() - 1);
+
+          // Surprise pushes outward from cluster center
           const surprise = node.surprise || 0;
-          const surpriseOffset = ((surprise - 8) / 10) * nebulaRadius * 0.5;
+          const surpriseOffset = ((surprise - 8) / 10) * nebulaRadius * 0.3;
 
-          const px = center.x + (r + surpriseOffset) * Math.sin(phi) * Math.cos(theta);
-          const py = center.y + (r + surpriseOffset) * Math.sin(phi) * Math.sin(theta);
-          const pz = center.z + (r + surpriseOffset) * Math.cos(phi);
+          const px = targetX + (jitterR + surpriseOffset) * Math.sin(jitterPhi) * Math.cos(jitterTheta);
+          const py = targetY + (jitterR + surpriseOffset) * Math.sin(jitterPhi) * Math.sin(jitterTheta);
+          const pz = targetZ + (jitterR + surpriseOffset) * Math.cos(jitterPhi);
 
           positions[i * 3]     = px;
           positions[i * 3 + 1] = py;
@@ -656,7 +675,8 @@ export default function FirefliesXR() {
           });
           const label = new THREE.Sprite(mat);
           const nebulaRadius = BASE_NEBULA * Math.sqrt(count / maxTagCount);
-          label.position.set(center.x, center.y + nebulaRadius + 0.12, center.z);
+          // Labels at the outer rim where clusters fully separate
+          label.position.set(center.x * 1.1, center.y * 1.1 + nebulaRadius + 0.12, center.z * 1.1);
           label.scale.set(0.5, 0.06, 1);
           galaxyGroup.add(label);
           tagLabels.push(label);
