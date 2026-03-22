@@ -408,6 +408,21 @@ export default function FirefliesXR() {
     controller1.addEventListener('selectstart', onSelectStart);
     controller1.addEventListener('selectend', onSelectEnd);
 
+    // ── Keyboard controls (WASD always active) ────────────────────────────
+
+    const keys: Record<string, boolean> = {};
+    const MOVE_SPEED = 0.05;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      keys[e.code] = true;
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        e.preventDefault();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => { keys[e.code] = false; };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
     // ── Non-XR orbit controls ─────────────────────────────────────────────
 
     const orbitControls = new OrbitControls(camera, renderer.domElement);
@@ -697,93 +712,85 @@ export default function FirefliesXR() {
           galaxyGroup.add(glowSphere);
         }
 
-        // ── Gravitational arcs between tag clusters ────────────────────
-        // Multi-tag posts create curved trajectories between clusters.
-        // Curvature = engagement (views) — high-view posts bend spacetime more.
-        // Each arc is a quadratic bezier sampled into line segments.
+        // ── Post-to-post gravitational connections ──────────────────────
+        // Multi-tag posts connect to other posts that share their tags.
+        // Lines go between ACTUAL post positions, not cluster centers.
+        // Brightness = word count (heavier posts = brighter connection).
 
-        // Count unique multi-tag connections and their total engagement
-        const connectionMap = new Map<string, { count: number; totalViews: number; tags: [string, string] }>();
-        for (const node of nodes) {
-          if (!node.subTags || node.subTags.length <= 1) continue;
-          const parentTags = [...new Set(node.subTags.map((st: string) => st.split(':')[0]))];
-          if (parentTags.length <= 1) continue;
-          for (let a = 0; a < parentTags.length; a++) {
-            for (let b = a + 1; b < parentTags.length; b++) {
-              const key = [parentTags[a], parentTags[b]].sort().join('|');
-              const existing = connectionMap.get(key) || { count: 0, totalViews: 0, tags: [parentTags[a], parentTags[b]] as [string, string] };
-              existing.count++;
-              existing.totalViews += (node.wordCount || 1); // use wordCount as proxy for engagement weight
-              connectionMap.set(key, existing);
-            }
+        const arcPositions: number[] = [];
+        const arcColors: number[] = [];
+        const CURVE_SEGMENTS = 8;
+        const MAX_CONNECTIONS = 500; // cap for performance
+
+        // Build a tag → post indices map
+        const tagPostIndices = new Map<string, number[]>();
+        for (let i = 0; i < nodeCount; i++) {
+          const node = nodes[i];
+          if (!node.subTags) continue;
+          const parents = new Set(node.subTags.map((st: string) => st.split(':')[0]));
+          for (const tag of parents) {
+            if (!tagPostIndices.has(tag)) tagPostIndices.set(tag, []);
+            tagPostIndices.get(tag)!.push(i);
           }
         }
 
-        // Only draw connections that appear 3+ times (filter noise)
-        const significantConnections = [...connectionMap.values()].filter(c => c.count >= 3);
+        // For multi-tag posts, connect to a random post in the OTHER tag
+        let connectionCount = 0;
+        for (let i = 0; i < nodeCount && connectionCount < MAX_CONNECTIONS; i++) {
+          const node = nodes[i];
+          if (!node.subTags || node.subTags.length <= 1) continue;
+          const parents = [...new Set(node.subTags.map((st: string) => st.split(':')[0]))];
+          if (parents.length <= 1) continue;
 
-        // Build curved arc geometry
-        const arcPositions: number[] = [];
-        const arcColors: number[] = [];
-        const CURVE_SEGMENTS = 16;
+          // This post's position
+          const ax = positions[i * 3];
+          const ay = positions[i * 3 + 1];
+          const az = positions[i * 3 + 2];
 
-        for (const conn of significantConnections) {
-          const ca = tagCenters[conn.tags[0]];
-          const cb = tagCenters[conn.tags[1]];
-          if (!ca || !cb) continue;
+          // Connect to a post in each other tag
+          for (let t = 1; t < parents.length && connectionCount < MAX_CONNECTIONS; t++) {
+            const otherTag = parents[t];
+            const otherIndices = tagPostIndices.get(otherTag);
+            if (!otherIndices || otherIndices.length === 0) continue;
 
-          // Gravitational curvature: more connections = deeper curve
-          const curvatureStrength = Math.min(0.6, conn.count / 50);
+            // Pick a nearby post (by index proximity = temporal proximity)
+            const targetIdx = otherIndices[Math.min(Math.floor(i / nodeCount * otherIndices.length), otherIndices.length - 1)];
+            const bx = positions[targetIdx * 3];
+            const by = positions[targetIdx * 3 + 1];
+            const bz = positions[targetIdx * 3 + 2];
 
-          // Midpoint + perpendicular offset for the bezier control point
-          const midX = (ca.x + cb.x) / 2;
-          const midY = (ca.y + cb.y) / 2;
-          const midZ = (ca.z + cb.z) / 2;
+            // Curved connection with gravitational bend toward origin
+            const midX = (ax + bx) / 2;
+            const midY = (ay + by) / 2;
+            const midZ = (az + bz) / 2;
+            const dist = Math.sqrt((bx-ax)**2 + (by-ay)**2 + (bz-az)**2);
 
-          // Perpendicular direction (cross product with up vector for variety)
-          const dx = cb.x - ca.x;
-          const dy = cb.y - ca.y;
-          const dz = cb.z - ca.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            // Bend toward origin (gravitational pull from center)
+            const bendStrength = 0.15;
+            const cpx = midX * (1 - bendStrength);
+            const cpy = midY * (1 - bendStrength);
+            const cpz = midZ * (1 - bendStrength);
 
-          // Cross with (0,1,0) for perpendicular
-          const px = dy * 0 - dz * 1; // simplified cross product
-          const py = dz * 0 - dx * 0;
-          const pz = dx * 1 - dy * 0;
-          const pLen = Math.sqrt(px * px + py * py + pz * pz) || 1;
+            const color1 = new THREE.Color(TAG_COLORS[parents[0]] || '#444');
+            const color2 = new THREE.Color(TAG_COLORS[otherTag] || '#444');
 
-          // Control point: midpoint + perpendicular offset scaled by curvature
-          const offset = dist * curvatureStrength;
-          const cpx = midX + (px / pLen) * offset;
-          const cpy = midY + (py / pLen) * offset;
-          const cpz = midZ + (pz / pLen) * offset;
+            for (let s = 0; s < CURVE_SEGMENTS; s++) {
+              const t0 = s / CURVE_SEGMENTS;
+              const t1 = (s + 1) / CURVE_SEGMENTS;
+              const x0 = (1-t0)*(1-t0)*ax + 2*(1-t0)*t0*cpx + t0*t0*bx;
+              const y0 = (1-t0)*(1-t0)*ay + 2*(1-t0)*t0*cpy + t0*t0*by;
+              const z0 = (1-t0)*(1-t0)*az + 2*(1-t0)*t0*cpz + t0*t0*bz;
+              const x1 = (1-t1)*(1-t1)*ax + 2*(1-t1)*t1*cpx + t1*t1*bx;
+              const y1 = (1-t1)*(1-t1)*ay + 2*(1-t1)*t1*cpy + t1*t1*by;
+              const z1 = (1-t1)*(1-t1)*az + 2*(1-t1)*t1*cpz + t1*t1*bz;
 
-          // Sample the quadratic bezier into line segments
-          const color1 = new THREE.Color(TAG_COLORS[conn.tags[0]] || '#444');
-          const color2 = new THREE.Color(TAG_COLORS[conn.tags[1]] || '#444');
-
-          for (let s = 0; s < CURVE_SEGMENTS; s++) {
-            const t0 = s / CURVE_SEGMENTS;
-            const t1 = (s + 1) / CURVE_SEGMENTS;
-
-            // Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
-            const x0 = (1 - t0) * (1 - t0) * ca.x + 2 * (1 - t0) * t0 * cpx + t0 * t0 * cb.x;
-            const y0 = (1 - t0) * (1 - t0) * ca.y + 2 * (1 - t0) * t0 * cpy + t0 * t0 * cb.y;
-            const z0 = (1 - t0) * (1 - t0) * ca.z + 2 * (1 - t0) * t0 * cpz + t0 * t0 * cb.z;
-            const x1 = (1 - t1) * (1 - t1) * ca.x + 2 * (1 - t1) * t1 * cpx + t1 * t1 * cb.x;
-            const y1 = (1 - t1) * (1 - t1) * ca.y + 2 * (1 - t1) * t1 * cpy + t1 * t1 * cb.y;
-            const z1 = (1 - t1) * (1 - t1) * ca.z + 2 * (1 - t1) * t1 * cpz + t1 * t1 * cb.z;
-
-            arcPositions.push(x0, y0, z0, x1, y1, z1);
-
-            // Gradient color from tag A to tag B
-            const cr = color1.r + (color2.r - color1.r) * t0;
-            const cg = color1.g + (color2.g - color1.g) * t0;
-            const cb2 = color1.b + (color2.b - color1.b) * t0;
-            const cr1 = color1.r + (color2.r - color1.r) * t1;
-            const cg1 = color1.g + (color2.g - color1.g) * t1;
-            const cb3 = color1.b + (color2.b - color1.b) * t1;
-            arcColors.push(cr, cg, cb2, cr1, cg1, cb3);
+              arcPositions.push(x0, y0, z0, x1, y1, z1);
+              const r0 = color1.r + (color2.r - color1.r) * t0;
+              const g0 = color1.g + (color2.g - color1.g) * t0;
+              const b0 = color1.b + (color2.b - color1.b) * t0;
+              arcColors.push(r0, g0, b0, r0, g0, b0);
+            }
+            connectionCount++;
           }
         }
 
@@ -794,7 +801,7 @@ export default function FirefliesXR() {
           const arcMat = new THREE.LineBasicMaterial({
             vertexColors: true,
             transparent: true,
-            opacity: 0.06,
+            opacity: 0.03,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
           });
@@ -842,9 +849,25 @@ export default function FirefliesXR() {
 
       galaxyGroup.rotation.y += GALAXY_AUTO_ROTATE;
 
-      // ── Non-XR orbit controls ─────────────────────────────────────────
+      // ── WASD movement (always active in non-XR) ────────────────────────
 
       if (!inXR) {
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+        if (keys['KeyW'] || keys['ArrowUp']) camera.position.addScaledVector(forward, MOVE_SPEED);
+        if (keys['KeyS'] || keys['ArrowDown']) camera.position.addScaledVector(forward, -MOVE_SPEED);
+        if (keys['KeyA'] || keys['ArrowLeft']) camera.position.addScaledVector(right, -MOVE_SPEED);
+        if (keys['KeyD'] || keys['ArrowRight']) camera.position.addScaledVector(right, MOVE_SPEED);
+        if (keys['Space']) camera.position.y += MOVE_SPEED;
+        if (keys['ShiftLeft'] || keys['ShiftRight']) camera.position.y -= MOVE_SPEED;
+
+        // Update orbit target to follow camera (so orbit + WASD work together)
+        if (keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] || keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight'] || keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight']) {
+          orbitControls.target.copy(camera.position).add(forward.multiplyScalar(2));
+        }
+
         orbitControls.update();
       }
 
@@ -912,6 +935,8 @@ export default function FirefliesXR() {
       disposed = true;
 
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
       renderer.domElement.removeEventListener('click', onClick);
       window.removeEventListener('resize', onResize);
 
@@ -1079,54 +1104,39 @@ export default function FirefliesXR() {
             gap: 8,
           }}
         >
-          {xrSupported === true && (
-            <button
-              onClick={handleEnterXR}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                borderRadius: 12,
-                color: 'rgba(255, 255, 255, 0.7)',
-                cursor: 'pointer',
-                padding: '12px 32px',
-                fontSize: 14,
-                fontFamily: 'monospace',
-                letterSpacing: '0.25em',
-                fontWeight: 600,
-                backdropFilter: 'blur(12px)',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
-              }}
-            >
-              ENTER XR
-            </button>
-          )}
-
+          {/* Always show ENTER XR button — Vision Pro may need user gesture to trigger permission */}
+          <button
+            onClick={handleEnterXR}
+            style={{
+              background: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: 12,
+              color: 'rgba(255, 255, 255, 0.7)',
+              cursor: 'pointer',
+              padding: '12px 32px',
+              fontSize: 14,
+              fontFamily: 'monospace',
+              letterSpacing: '0.25em',
+              fontWeight: 600,
+              backdropFilter: 'blur(12px)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+            }}
+          >
+            ENTER XR
+          </button>
           {xrSupported === false && (
-            <div
-              style={{
-                fontSize: 10,
-                fontFamily: 'monospace',
-                color: 'rgba(255, 255, 255, 0.25)',
-                letterSpacing: '0.1em',
-                textAlign: 'center',
-                lineHeight: 1.6,
-              }}
-            >
-              WebXR not available
-              <br />
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.15)' }}>
-                Open on Vision Pro with Safari WebXR enabled
-              </span>
+            <div style={{ fontSize: 9, fontFamily: 'monospace', color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>
+              WebXR may need to be enabled in Safari settings
             </div>
           )}
 
