@@ -1,4 +1,5 @@
 services:
+  # ─── Always runs: Postgres ─────────────────────────────────
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -17,11 +18,13 @@ services:
       timeout: 3s
       retries: 5
 
+  # ─── Data layer: sync worker (auto-pulls every 30 min) ─────
   sync:
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    profiles: [data, full]
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,6 +40,25 @@ services:
       FULL_SYNC_ON_START: ${FULL_SYNC_ON_START:-false}
     volumes:
       - ./data:/app/data
+      - ./public/data:/app/public/data
+
+  # ─── Web layer: Astro dashboard on :4321 ───────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    profiles: [web, full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4321:4321"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4321"
+      DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
+    volumes:
       - ./public/data:/app/public/data
 
 volumes:
