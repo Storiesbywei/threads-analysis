@@ -621,7 +621,7 @@ export default function FirefliesXR() {
         points = new THREE.Points(geometry, material);
         galaxyGroup.add(points);
 
-        // ── Tag cluster labels (floating in space) ───────────────────────
+        // ── Tag cluster labels (subtle glowing text, no boxes) ──────────
 
         for (const tag of TAG_ORDER) {
           const center = tagCenters[tag];
@@ -629,19 +629,88 @@ export default function FirefliesXR() {
           const count = tagCounts.get(tag) || 0;
           if (count === 0) continue;
 
-          const label = createTextSprite(`${tag} (${count.toLocaleString()})`, {
-            fontSize: 20,
-            color: TAG_COLORS[tag] || '#8b949e',
-            bgColor: 'rgba(2, 2, 8, 0.65)',
-            maxWidth: 320,
-            padding: 10,
-          });
+          // Create minimal glowing label — no background box
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d')!;
+          const tagColor = TAG_COLORS[tag] || '#8b949e';
+          const fontSize = 16;
+          canvas.width = 256;
+          canvas.height = 32;
 
-          // Position label slightly above the cluster center
+          // Just text, no background — transparent canvas
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = tagColor;
+          ctx.globalAlpha = 0.6;
+          ctx.font = `500 ${fontSize}px -apple-system, monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(tag, canvas.width / 2, canvas.height / 2);
+
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.needsUpdate = true;
+          const mat = new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const label = new THREE.Sprite(mat);
           const nebulaRadius = BASE_NEBULA * Math.sqrt(count / maxTagCount);
-          label.position.set(center.x, center.y + nebulaRadius + 0.15, center.z);
+          label.position.set(center.x, center.y + nebulaRadius + 0.12, center.z);
+          label.scale.set(0.5, 0.06, 1);
           galaxyGroup.add(label);
           tagLabels.push(label);
+
+          // Add a subtle point light glow at each cluster center
+          // (represents total engagement/likes as brightness)
+          const glowGeo = new THREE.SphereGeometry(0.02, 8, 8);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(tagColor),
+            transparent: true,
+            opacity: 0.3,
+          });
+          const glowSphere = new THREE.Mesh(glowGeo, glowMat);
+          glowSphere.position.set(center.x, center.y, center.z);
+          galaxyGroup.add(glowSphere);
+        }
+
+        // ── Cross-galaxy links for multi-tag posts ──────────────────────
+        // Posts with multiple tags create faint lines between their tag clusters
+        const linkPositions: number[] = [];
+        const linkColors: number[] = [];
+        for (const node of nodes) {
+          if (node.subTags && node.subTags.length > 1) {
+            // Find the parent tags of the sub-tags
+            const parentTags = new Set(node.subTags.map((st: string) => st.split(':')[0]));
+            if (parentTags.size > 1) {
+              const tagArr = [...parentTags];
+              for (let a = 0; a < tagArr.length; a++) {
+                for (let b = a + 1; b < tagArr.length; b++) {
+                  const ca = tagCenters[tagArr[a]];
+                  const cb = tagCenters[tagArr[b]];
+                  if (ca && cb) {
+                    linkPositions.push(ca.x, ca.y, ca.z, cb.x, cb.y, cb.z);
+                    const col = new THREE.Color(TAG_COLORS[tagArr[a]] || '#444');
+                    linkColors.push(col.r, col.g, col.b, col.r, col.g, col.b);
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (linkPositions.length > 0) {
+          const linkGeo = new THREE.BufferGeometry();
+          linkGeo.setAttribute('position', new THREE.Float32BufferAttribute(linkPositions, 3));
+          linkGeo.setAttribute('color', new THREE.Float32BufferAttribute(linkColors, 3));
+          const linkMat = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.04,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const linkLines = new THREE.LineSegments(linkGeo, linkMat);
+          galaxyGroup.add(linkLines);
         }
 
         setLoading(false);
