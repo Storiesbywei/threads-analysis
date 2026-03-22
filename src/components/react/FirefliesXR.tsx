@@ -1271,9 +1271,13 @@ export default function FirefliesXR() {
       controller1.removeEventListener('select', onSelect);
       controller1.removeEventListener('selectend', onSelectEnd);
 
-      // Dispose hand models
-      scene.remove(hand0);
-      scene.remove(hand1);
+      // Controllers 2-3 cleanup
+      controller2.removeEventListener('selectstart', onSelectStart);
+      controller2.removeEventListener('select', onSelect);
+      controller2.removeEventListener('selectend', onSelectEnd);
+      controller3.removeEventListener('selectstart', onSelectStart);
+      controller3.removeEventListener('select', onSelect);
+      controller3.removeEventListener('selectend', onSelectEnd);
 
       removeActiveLabel();
       for (const label of tagLabels) {
