@@ -312,6 +312,148 @@ const peakMonth = sortedMonths.sort((a, b) => {
 })[0];
 const peakMonthTotal = peakMonth ? peakMonth[1].original + peakMonth[1].reply + peakMonth[1].quote : 0;
 const peakHour = hourlyCounts.indexOf(maxHourly);
+
+// ── Mutual Information computation ──
+// Mirrors the logic from scripts/analysis/information-theory.mjs (section 7)
+// MI formula: I(X;Y) = H(X) + H(Y) - H(X,Y)
+
+function miLog2(x: number): number { return x === 0 ? 0 : Math.log2(x); }
+
+function miEntropy(counts: Record<string, number>): number {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (total === 0) return 0;
+  let h = 0;
+  for (const c of Object.values(counts)) {
+    const p = c / total;
+    if (p > 0) h -= p * miLog2(p);
+  }
+  return h;
+}
+
+function computeMI(
+  xCounts: Record<string, number>,
+  yCounts: Record<string, number>,
+  jointCounts: Record<string, number>,
+): number {
+  return miEntropy(xCounts) + miEntropy(yCounts) - miEntropy(jointCounts);
+}
+
+function computeNormalizedMI(
+  xCounts: Record<string, number>,
+  yCounts: Record<string, number>,
+  jointCounts: Record<string, number>,
+): number {
+  const hx = miEntropy(xCounts);
+  const hy = miEntropy(yCounts);
+  const minH = Math.min(hx, hy);
+  if (minH === 0) return 0;
+  return computeMI(xCounts, yCounts, jointCounts) / minH;
+}
+
+function lengthBucket(wordCount: number): string {
+  // Use char_count estimation: word_count * ~6 chars/word
+  const charEst = wordCount * 6;
+  if (charEst < 20) return 'micro';
+  if (charEst < 50) return 'short';
+  if (charEst < 150) return 'medium';
+  if (charEst < 500) return 'long';
+  return 'essay';
+}
+
+// Build count tables from timedPosts (already joined with rawPosts above)
+const miTagCounts: Record<string, number> = {};
+const miHourCounts: Record<string, number> = {};
+const miDowCounts: Record<string, number> = {};
+const miLenCounts: Record<string, number> = {};
+const miQuoteCounts: Record<string, number> = {};
+
+const miJointTagHour: Record<string, number> = {};
+const miJointTagDow: Record<string, number> = {};
+const miJointTagLen: Record<string, number> = {};
+const miJointTagQuote: Record<string, number> = {};
+
+const DOW_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+for (const p of timedPosts) {
+  const tag = p.primaryTag;
+  const hour = String(p.hour).padStart(2, '0');
+  const dow = DOW_NAMES[p.dayOfWeek];
+  // Look up word count from tagged posts data
+  const tagged = tagLookup.get(p.id);
+  const len = lengthBucket(tagged?.word_count ?? 10);
+  const quote = p.isQuote ? 'quote' : 'original';
+
+  miTagCounts[tag] = (miTagCounts[tag] || 0) + 1;
+  miHourCounts[hour] = (miHourCounts[hour] || 0) + 1;
+  miDowCounts[dow] = (miDowCounts[dow] || 0) + 1;
+  miLenCounts[len] = (miLenCounts[len] || 0) + 1;
+  miQuoteCounts[quote] = (miQuoteCounts[quote] || 0) + 1;
+
+  miJointTagHour[`${tag}|${hour}`] = (miJointTagHour[`${tag}|${hour}`] || 0) + 1;
+  miJointTagDow[`${tag}|${dow}`] = (miJointTagDow[`${tag}|${dow}`] || 0) + 1;
+  miJointTagLen[`${tag}|${len}`] = (miJointTagLen[`${tag}|${len}`] || 0) + 1;
+  miJointTagQuote[`${tag}|${quote}`] = (miJointTagQuote[`${tag}|${quote}`] || 0) + 1;
+}
+
+interface MIPair {
+  x: string;
+  y: string;
+  yLabel: string;
+  mi: number;
+  normalizedMI: number;
+  interpretation: string;
+}
+
+function interpret(mi: number): string {
+  if (mi > 0.1) return 'Strong dependency';
+  if (mi > 0.05) return 'Moderate relationship';
+  if (mi > 0.01) return 'Weak relationship';
+  return 'Near-independent';
+}
+
+const miPairs: MIPair[] = [
+  {
+    x: 'Tag', y: 'hour', yLabel: 'Hour of Day',
+    mi: computeMI(miTagCounts, miHourCounts, miJointTagHour),
+    normalizedMI: computeNormalizedMI(miTagCounts, miHourCounts, miJointTagHour),
+    interpretation: interpret(computeMI(miTagCounts, miHourCounts, miJointTagHour)),
+  },
+  {
+    x: 'Tag', y: 'dow', yLabel: 'Day of Week',
+    mi: computeMI(miTagCounts, miDowCounts, miJointTagDow),
+    normalizedMI: computeNormalizedMI(miTagCounts, miDowCounts, miJointTagDow),
+    interpretation: interpret(computeMI(miTagCounts, miDowCounts, miJointTagDow)),
+  },
+  {
+    x: 'Tag', y: 'length', yLabel: 'Post Length',
+    mi: computeMI(miTagCounts, miLenCounts, miJointTagLen),
+    normalizedMI: computeNormalizedMI(miTagCounts, miLenCounts, miJointTagLen),
+    interpretation: interpret(computeMI(miTagCounts, miLenCounts, miJointTagLen)),
+  },
+  {
+    x: 'Tag', y: 'quote', yLabel: 'Quote Status',
+    mi: computeMI(miTagCounts, miQuoteCounts, miJointTagQuote),
+    normalizedMI: computeNormalizedMI(miTagCounts, miQuoteCounts, miJointTagQuote),
+    interpretation: interpret(computeMI(miTagCounts, miQuoteCounts, miJointTagQuote)),
+  },
+];
+
+// Sort by MI descending (strongest relationship first)
+miPairs.sort((a, b) => b.mi - a.mi);
+
+// Color function for MI cells: maps normalized MI [0,1] to a green-gray gradient
+function miCellColor(normalizedMI: number): string {
+  if (normalizedMI >= 0.15) return '#3fb95066';
+  if (normalizedMI >= 0.08) return '#3fb95044';
+  if (normalizedMI >= 0.04) return '#3fb95028';
+  if (normalizedMI >= 0.01) return '#3fb95014';
+  return '#8b949e10';
+}
+
+function miBarWidth(normalizedMI: number): number {
+  // Cap at 100% — in practice normalized MI will rarely exceed 0.3
+  return Math.min(normalizedMI / 0.3 * 100, 100);
+}
 ---
 <Layout title="Chronology">
   <h1>The Chronology</h1>
@@ -365,6 +507,59 @@ const peakHour = hourlyCounts.indexOf(maxHourly);
     </p>
     <div class="chart-container" set:html={evoSvg} />
   </div>
+
+  <div class="section">
+    <h2 class="section-title">Mutual Information</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      How much does knowing one variable reduce uncertainty about another?
+      Higher MI means a stronger statistical dependency between the pair.
+      MI = 0 means fully independent; normalized MI near 1 means near-perfect correlation.
+    </p>
+
+    <div class="mi-table-wrap">
+      <table class="mi-table">
+        <thead>
+          <tr>
+            <th>Feature Pair</th>
+            <th>MI (bits)</th>
+            <th>Normalized</th>
+            <th>Strength</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {miPairs.map((pair) => (
+            <tr>
+              <td class="mi-pair-label">
+                <span class="mi-x">Tag</span>
+                <span class="mi-sep">&times;</span>
+                <span class="mi-y">{pair.yLabel}</span>
+              </td>
+              <td class="mi-value" style={`background: ${miCellColor(pair.normalizedMI)};`}>
+                {pair.mi.toFixed(4)}
+              </td>
+              <td class="mi-value" style={`background: ${miCellColor(pair.normalizedMI)};`}>
+                {pair.normalizedMI.toFixed(4)}
+              </td>
+              <td class="mi-interp">
+                {pair.interpretation}
+              </td>
+              <td class="mi-bar-cell">
+                <div class="mi-bar" style={`width: ${miBarWidth(pair.normalizedMI)}%;`}></div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mi-legend">
+      <span class="mi-legend-item"><span class="mi-swatch" style="background: #3fb95066;"></span> Strong</span>
+      <span class="mi-legend-item"><span class="mi-swatch" style="background: #3fb95044;"></span> Moderate</span>
+      <span class="mi-legend-item"><span class="mi-swatch" style="background: #3fb95028;"></span> Weak</span>
+      <span class="mi-legend-item"><span class="mi-swatch" style="background: #8b949e10;"></span> Independent</span>
+    </div>
+  </div>
 </Layout>
 
 <style>
@@ -379,5 +574,117 @@ const peakHour = hourlyCounts.indexOf(maxHourly);
   .chart-container svg {
     width: 100%;
     height: auto;
+  }
+
+  /* ── Mutual Information table ── */
+
+  .mi-table-wrap {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .mi-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+  }
+
+  .mi-table thead th {
+    text-align: left;
+    padding: var(--space-sm) var(--space-md);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+  }
+
+  .mi-table tbody tr {
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.15s;
+  }
+
+  .mi-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .mi-table tbody tr:hover {
+    background: var(--bg-hover);
+  }
+
+  .mi-table td {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .mi-pair-label {
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .mi-x {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .mi-sep {
+    color: var(--text-tertiary);
+    margin: 0 0.4em;
+  }
+
+  .mi-y {
+    color: var(--text-secondary);
+  }
+
+  .mi-value {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    text-align: right;
+    border-radius: var(--radius-sm);
+  }
+
+  .mi-interp {
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+  }
+
+  .mi-bar-cell {
+    width: 120px;
+    padding-right: var(--space-md);
+  }
+
+  .mi-bar {
+    height: 6px;
+    background: var(--success);
+    border-radius: 3px;
+    opacity: 0.7;
+    min-width: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .mi-legend {
+    display: flex;
+    gap: var(--space-lg);
+    margin-top: var(--space-md);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+  }
+
+  .mi-legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .mi-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid var(--border-light);
   }
 </style>

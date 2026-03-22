@@ -8,6 +8,8 @@ import StatCard from '../components/StatCard.astro';
 import { tagColor } from '../lib/colors';
 import { num, bits, pct } from '../lib/format';
 import type { PostTagsData } from '../lib/types';
+import EngagementHeatmap from '../components/react/EngagementHeatmap';
+import SurpriseScatter from '../components/react/SurpriseScatter';
 
 const dataDir = path.join(process.cwd(), 'public', 'data');
 const data: PostTagsData = JSON.parse(
@@ -139,6 +141,19 @@ const treemapSvg = `<svg viewBox="0 0 ${treemapW} ${treemapH}" xmlns="http://www
         ))}
       </tbody>
     </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Engagement Heatmap</h2>
+    <EngagementHeatmap client:load />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Surprise × Engagement</h2>
+    <p style="color: var(--text-secondary); margin-bottom: var(--space-md);">
+      Do unusual posts get more views? Each dot is a post.
+    </p>
+    <SurpriseScatter client:load />
   </div>
 </Layout>
 
