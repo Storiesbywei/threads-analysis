@@ -1199,15 +1199,20 @@ export default function FirefliesXR() {
         }
 
         if (emptyPinchCount > 0) {
+          // Get head direction but FLATTEN to horizontal plane
+          // This way looking down doesn't dive — head rotation steers left/right only
           const gazeDir = new THREE.Vector3(0, 0, -1);
           camera.getWorldDirection(gazeDir);
+          gazeDir.y = 0; // remove vertical component — always fly level
+          gazeDir.normalize();
+
           const FLY_SPEED = 0.015;
 
           if (emptyPinchCount === 1) {
-            // One hand pinching = fly FORWARD
+            // One hand pinching = fly FORWARD (horizontal)
             cameraRig.position.addScaledVector(gazeDir, FLY_SPEED);
           } else if (emptyPinchCount >= 2) {
-            // Both hands pinching = fly BACKWARD
+            // Both hands pinching = fly BACKWARD (horizontal)
             cameraRig.position.addScaledVector(gazeDir, -FLY_SPEED);
           }
         }
