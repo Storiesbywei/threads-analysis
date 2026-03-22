@@ -31,8 +31,8 @@ interface TagInfo {
 const BG = 0x020208;
 
 // XR room-scale: everything in meters
-const SPHERE_RADIUS = 3;             // tag centers on a 3m radius sphere
-const BASE_NEBULA = 0.8;             // base nebula size (meters)
+const SPHERE_RADIUS = 1.5;           // tag centers on a 1.5m radius sphere (closer together)
+const BASE_NEBULA = 2.5;             // base nebula size — large so they overlap into a continuous sphere
 const DRIFT_AMPLITUDE = 0.005;       // gentle drift in meters
 const DRIFT_SPEED = 0.5;
 const BLINK_AMPLITUDE = 0.1;
@@ -49,7 +49,7 @@ const HIGHLIGHT_RADIUS = 0.5;        // meters — radius for proximity highligh
 const FLASH_DURATION_MS = 300;       // flash brightness on selection
 
 // Non-XR orbit constants
-const ORBIT_RADIUS_INIT = 6;
+const ORBIT_RADIUS_INIT = 3; // start closer — inside the cloud
 const ORBIT_ZOOM_SPEED = 0.3;
 const ORBIT_RADIUS_MIN = 1;
 const ORBIT_RADIUS_MAX = 15;
