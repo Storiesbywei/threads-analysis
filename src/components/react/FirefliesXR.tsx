@@ -516,9 +516,19 @@ export default function FirefliesXR() {
         isGrabbing: false,
       };
 
-      // Always treat as potential post selection — no grab locomotion
-      // (Vision Pro transient-pointer gives stale positions causing camera jumps)
-      pinchStates.set(controller, state);
+      if (hitIdx >= 0) {
+        // Hit a particle — post selection mode
+        pinchStates.set(controller, state);
+      } else {
+        // No particle hit — galaxy rotation mode (rotate the universe like a snow globe)
+        state.isGrabbing = true;
+        pinchStates.set(controller, state);
+
+        if (!grabController) {
+          grabController = controller;
+          grabStartPos.setFromMatrixPosition(controller.matrixWorld);
+        }
+      }
 
       // Check for two-hand zoom
       checkTwoHandZoomStart();
@@ -1075,17 +1085,22 @@ export default function FirefliesXR() {
         }
       }
 
-      // ── XR: Grab locomotion with damping ────────────────────────────
+      // ── XR: Galaxy rotation (pinch + move hand = spin the universe) ──
 
       if (inXR && grabController) {
         _grabCurrentPos.setFromMatrixPosition(grabController.matrixWorld);
-        _grabDelta.subVectors(grabStartPos, _grabCurrentPos);
+        _grabDelta.subVectors(_grabCurrentPos, grabStartPos);
 
-        // Target position = starting rig position + scaled delta
-        _dampedRigTarget.copy(rigStartPos).add(_grabDelta.multiplyScalar(GRAB_MOVE_SCALE));
+        // Map hand movement to galaxy rotation (like turning a snow globe)
+        const ROTATION_SENSITIVITY = 2.0;
+        galaxyGroup.rotation.y += _grabDelta.x * ROTATION_SENSITIVITY;
+        galaxyGroup.rotation.x += _grabDelta.y * ROTATION_SENSITIVITY;
 
-        // Smooth damping — interpolate toward target
-        cameraRig.position.lerp(_dampedRigTarget, 1.0 - GRAB_DAMPING);
+        // Clamp X rotation to avoid flipping upside down
+        galaxyGroup.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, galaxyGroup.rotation.x));
+
+        // Update start position for continuous rotation
+        grabStartPos.copy(_grabCurrentPos);
       }
 
       // ── XR: Two-hand pinch-to-zoom ──────────────────────────────────
@@ -1094,9 +1109,11 @@ export default function FirefliesXR() {
         updateTwoHandZoom();
       }
 
-      // ── Galaxy auto-rotation ──────────────────────────────────────────
+      // ── Galaxy auto-rotation (pause during manual rotation) ──────────
 
-      galaxyGroup.rotation.y += GALAXY_AUTO_ROTATE;
+      if (!grabController) {
+        galaxyGroup.rotation.y += GALAXY_AUTO_ROTATE;
+      }
 
       // ── WASD movement (always active in non-XR) ────────────────────────
 
