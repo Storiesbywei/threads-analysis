@@ -1,0 +1,150 @@
+---
+export const prerender = false;
+---
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cosmos Hub — Threads Analysis</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100vh; background: #050510; color: #e6edf3; font-family: -apple-system, sans-serif; }
+
+    .hub { max-width: 900px; margin: 0 auto; padding: 60px 24px; }
+    .hub h1 { font-size: 2rem; font-weight: 300; margin-bottom: 8px; letter-spacing: 0.05em; }
+    .hub .sub { color: #6e7681; font-size: 0.875rem; margin-bottom: 48px; }
+
+    .systems { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .system-card {
+      background: #0a0a1a;
+      border: 1px solid #1a1a3a;
+      border-radius: 12px;
+      padding: 24px;
+      text-decoration: none;
+      color: #e6edf3;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .system-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse at 30% 20%, rgba(100,100,255,0.03) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .system-card:hover {
+      border-color: #4a4a8a;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 24px rgba(80,80,180,0.08);
+    }
+
+    .card-icon { font-size: 1.6rem; margin-bottom: 12px; letter-spacing: 4px; }
+    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+    .card-desc { color: #8b949e; font-size: 0.8rem; line-height: 1.4; margin-bottom: 12px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .card-tag {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+    .card-count {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #6e7681;
+    }
+
+    .back { display: inline-block; margin-top: 32px; color: #6e7681; font-size: 0.8rem; text-decoration: none; font-family: monospace; }
+    .back:hover { color: #58a6ff; }
+
+    @media (max-width: 640px) { .systems { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="hub">
+    <h1>Threads Cosmos</h1>
+    <p class="sub">40K posts as celestial bodies orbiting in deep space — pick a system to explore</p>
+
+    <div class="systems">
+      <a href="/cosmos/social" class="system-card">
+        <div class="card-icon">. * . .</div>
+        <div class="card-title">Social Nebula</div>
+        <div class="card-desc">The conversational core — reactions, one-liners, questions, shitposts orbiting together</div>
+        <div class="card-count">~26K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#d4a04a15;color:#d4a04a">reaction</span>
+          <span class="card-tag" style="background:#a0803015;color:#a08030">one-liner</span>
+          <span class="card-tag" style="background:#6d8ec415;color:#6d8ec4">question</span>
+          <span class="card-tag" style="background:#c46a3a15;color:#c46a3a">shitpost</span>
+          <span class="card-tag" style="background:#a8906015;color:#a89060">meta-social</span>
+        </div>
+      </a>
+
+      <a href="/cosmos/intellectual" class="system-card">
+        <div class="card-icon">* . . *</div>
+        <div class="card-title">Discourse Cluster</div>
+        <div class="card-desc">Philosophy, tech, politics, race, gender — the dense thought-mass of the cosmos</div>
+        <div class="card-count">~5.5K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#ab6acf15;color:#ab6acf">philosophy</span>
+          <span class="card-tag" style="background:#4db89a15;color:#4db89a">tech</span>
+          <span class="card-tag" style="background:#c4404015;color:#c44040">political</span>
+          <span class="card-tag" style="background:#c44a4a15;color:#c44a4a">race</span>
+          <span class="card-tag" style="background:#c46aaa15;color:#c46aaa">sex-gender</span>
+          <span class="card-tag" style="background:#8a8a5a15;color:#8a8a5a">commentary</span>
+        </div>
+      </a>
+
+      <a href="/cosmos/life" class="system-card">
+        <div class="card-icon">. . * .</div>
+        <div class="card-title">Daily System</div>
+        <div class="card-desc">Personal life, food, work, creativity, language — the everyday orbit</div>
+        <div class="card-count">~4.1K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#c47a4a15;color:#c47a4a">personal</span>
+          <span class="card-tag" style="background:#7aa77115;color:#7aa771">daily-life</span>
+          <span class="card-tag" style="background:#9ec46a15;color:#9ec46a">food</span>
+          <span class="card-tag" style="background:#5a8aaa15;color:#5a8aaa">work</span>
+          <span class="card-tag" style="background:#ba5aaa15;color:#ba5aaa">creative</span>
+          <span class="card-tag" style="background:#5aaa8a15;color:#5aaa8a">language</span>
+        </div>
+      </a>
+
+      <a href="/cosmos/culture" class="system-card">
+        <div class="card-icon">* * . .</div>
+        <div class="card-title">Media Galaxy</div>
+        <div class="card-desc">Film, TV, music, finance, shared links — the cultural constellation</div>
+        <div class="card-count">~2.7K posts</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#9a6abf15;color:#9a6abf">media</span>
+          <span class="card-tag" style="background:#4a8ac415;color:#4a8ac4">finance</span>
+          <span class="card-tag" style="background:#8aaa5a15;color:#8aaa5a">url-share</span>
+        </div>
+      </a>
+
+      <a href="/cosmos/interactions" class="system-card" style="grid-column: 1 / -1;">
+        <div class="card-icon">* . * . *</div>
+        <div class="card-title">Interaction Constellation</div>
+        <div class="card-desc">Your social gravity — @mentions, replies, quotes, conversations pulling across the void</div>
+        <div class="card-count">1,668 interactions</div>
+        <div class="card-tags">
+          <span class="card-tag" style="background:#58a6ff15;color:#58a6ff">replies</span>
+          <span class="card-tag" style="background:#3fb95015;color:#3fb950">comments</span>
+          <span class="card-tag" style="background:#d2992215;color:#d29922">quotes</span>
+          <span class="card-tag" style="background:#ba5aaa15;color:#ba5aaa">mentions</span>
+        </div>
+      </a>
+    </div>
+
+    <a href="/" class="back">&larr; back to dashboard</a>
+  </div>
+</body>
+</html>

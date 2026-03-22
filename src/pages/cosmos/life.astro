@@ -1,0 +1,23 @@
+---
+export const prerender = false;
+import CosmosView from '../../components/react/CosmosView';
+const tags = ['personal', 'daily-life', 'food', 'work', 'creative', 'language'];
+---
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily System — Threads Cosmos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #050510; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; border-radius: 50%; background: #6a7aff; cursor: pointer; border: none; margin-top: -4px; }
+    input[type="range"]::-webkit-slider-runnable-track { height: 2px; }
+    ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <a href="/cosmos" style="position:fixed;bottom:12px;right:12px;z-index:30;font-family:monospace;font-size:9px;color:rgba(255,255,255,0.2);text-decoration:none;padding:4px 8px;border:1px solid rgba(255,255,255,0.08);border-radius:4px;">&larr; COSMOS HUB</a>
+  <CosmosView client:only="react" tags={tags} title="Daily System" maxNodes={2000} />
+</body>
+</html>
