@@ -1,0 +1,35 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import InteractionNetwork from '../components/react/InteractionNetwork';
+---
+<Layout title="Interactions" description="Interaction network — who @maybe_foucault talks to on Threads">
+  <div class="page-header">
+    <div>
+      <h1>Interaction Network</h1>
+      <p class="subtitle">
+        Force-directed graph of @mentions, replies, comments, and quotes across the corpus
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <InteractionNetwork client:only="react" />
+  </div>
+</Layout>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-xl);
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-sm);
+  }
+</style>

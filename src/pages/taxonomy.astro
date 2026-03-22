@@ -1,0 +1,364 @@
+---
+export const prerender = true;
+
+import fs from 'node:fs';
+import path from 'node:path';
+import Layout from '../layouts/Layout.astro';
+import StatCard from '../components/StatCard.astro';
+import { tagColor } from '../lib/colors';
+import { num, pct } from '../lib/format';
+import type { PostTagsData } from '../lib/types';
+
+const dataDir = path.join(process.cwd(), 'public', 'data');
+const data: PostTagsData = JSON.parse(
+  fs.readFileSync(path.join(dataDir, 'post-tags.json'), 'utf-8')
+);
+
+const { corpus_stats: cs, tag_distribution: td, sub_tag_distribution: std, posts } = data;
+const sortedTags = Object.entries(td).sort((a, b) => b[1] - a[1]);
+const totalPosts = cs.total_posts;
+
+// ── Sub-tag grouping ──
+// Group sub-tags by parent tag
+const subTagsByParent = new Map<string, { sub: string; count: number }[]>();
+for (const [subTag, count] of Object.entries(std)) {
+  const [parent, child] = subTag.split(':');
+  if (!subTagsByParent.has(parent)) subTagsByParent.set(parent, []);
+  subTagsByParent.get(parent)!.push({ sub: child, count });
+}
+// Sort each parent's sub-tags descending
+for (const [, subs] of subTagsByParent) {
+  subs.sort((a, b) => b.count - a.count);
+}
+
+// Categories with sub-tags (9 discourse categories)
+const parentTagsWithSubs = sortedTags.filter(([tag]) => subTagsByParent.has(tag));
+const parentsWithoutSubs = sortedTags.filter(([tag]) => !subTagsByParent.has(tag));
+
+// ── Coverage data ──
+// For each parent tag, how many posts are sub-tagged
+const coverageData = sortedTags.map(([tag, totalCount]) => {
+  const subs = subTagsByParent.get(tag);
+  if (!subs) return { tag, totalCount, subTagged: 0, subTagCount: 0, coverage: 0 };
+  const subTagged = subs.reduce((s, st) => s + st.count, 0);
+  return { tag, totalCount, subTagged, subTagCount: subs.length, coverage: subTagged / totalCount };
+});
+
+// ── Section 1: Squarified Treemap with nested sub-tags ──
+const treemapW = 720;
+const treemapH = 480;
+
+function squarify(items: {tag: string; count: number; subs?: {sub: string; count: number}[]}[], x: number, y: number, w: number, h: number): string[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) {
+    const { tag, count, subs } = items[0];
+    const color = tagColor(tag);
+    const elements: string[] = [];
+    // Parent rect
+    elements.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${color}" opacity="0.5" stroke="#0d1117" stroke-width="1.5"/>`);
+
+    // Nested sub-tag bands (vertical stacked within parent)
+    if (subs && subs.length > 0 && w > 30 && h > 30) {
+      const subTotal = subs.reduce((s, st) => s + st.count, 0);
+      const padding = 3;
+      const innerX = x + padding;
+      const innerY = y + (w > 50 ? 22 : 16);
+      const innerW = w - padding * 2;
+      const innerH = h - (w > 50 ? 26 : 20);
+      let currentY = innerY;
+      for (const st of subs) {
+        const bandH = Math.max((st.count / subTotal) * innerH, 2);
+        if (currentY + bandH > y + h - padding) break;
+        elements.push(`<rect x="${innerX}" y="${currentY}" width="${innerW}" height="${bandH - 1}" rx="1" fill="${color}" opacity="0.85"/>`);
+        if (bandH > 12 && innerW > 60) {
+          elements.push(`<text x="${innerX + 4}" y="${currentY + bandH / 2 + 3}" fill="#e6edf3" font-size="8" font-family="-apple-system, sans-serif" opacity="0.9">${st.sub}</text>`);
+          elements.push(`<text x="${innerX + innerW - 4}" y="${currentY + bandH / 2 + 3}" fill="#e6edf3" font-size="8" font-family="monospace" text-anchor="end" opacity="0.7">${st.count}</text>`);
+        }
+        currentY += bandH;
+      }
+    }
+
+    // Parent label
+    if (w > 50) {
+      elements.push(`<text x="${x + 5}" y="${y + 14}" fill="#e6edf3" font-size="11" font-family="-apple-system, sans-serif" font-weight="600">${tag}</text>`);
+      if (w > 70) {
+        elements.push(`<text x="${x + w - 5}" y="${y + 14}" fill="#e6edf3" font-size="9" font-family="monospace" text-anchor="end" opacity="0.6">${num(count)}</text>`);
+      }
+    } else if (w > 28) {
+      elements.push(`<text x="${x + 3}" y="${y + 12}" fill="#e6edf3" font-size="8" font-family="-apple-system, sans-serif" font-weight="600">${tag.slice(0, 6)}</text>`);
+    }
+    return elements;
+  }
+  const total = items.reduce((s, i) => s + i.count, 0);
+  const mid = Math.ceil(items.length / 2);
+  const left = items.slice(0, mid);
+  const right = items.slice(mid);
+  const leftTotal = left.reduce((s, i) => s + i.count, 0);
+  const ratio = leftTotal / total;
+  if (w >= h) {
+    const splitX = x + w * ratio;
+    return [
+      ...squarify(left, x, y, w * ratio, h),
+      ...squarify(right, splitX, y, w * (1 - ratio), h),
+    ];
+  } else {
+    const splitY = y + h * ratio;
+    return [
+      ...squarify(left, x, y, w, h * ratio),
+      ...squarify(right, x, splitY, w, h * (1 - ratio)),
+    ];
+  }
+}
+
+const treemapItems = sortedTags.map(([tag, count]) => ({
+  tag,
+  count,
+  subs: subTagsByParent.get(tag),
+}));
+const treemapRects = squarify(treemapItems, 0, 0, treemapW, treemapH);
+const treemapSvg = `<svg viewBox="0 0 ${treemapW} ${treemapH}" xmlns="http://www.w3.org/2000/svg">${treemapRects.join('')}</svg>`;
+
+// ── Section 2: Sub-tag distribution bar chart (grouped by parent) ──
+const subBarWidth = 700;
+const subBarLabelW = 180;
+const subRowH = 22;
+const groupGap = 28;
+
+const maxSubCount = Math.max(...Object.values(std));
+let subBarY = 0;
+const subBarParts: string[] = [];
+
+for (const [parentTag, parentCount] of parentTagsWithSubs) {
+  const subs = subTagsByParent.get(parentTag)!;
+  const color = tagColor(parentTag);
+  // Parent header
+  subBarParts.push(`<g>
+    <circle cx="8" cy="${subBarY + 10}" r="5" fill="${color}" opacity="0.8"/>
+    <text x="20" y="${subBarY + 14}" fill="#e6edf3" font-size="12" font-family="-apple-system, sans-serif" font-weight="600">${parentTag}</text>
+    <text x="${subBarLabelW}" y="${subBarY + 14}" fill="#6e7681" font-size="10" font-family="monospace">${num(parentCount)} posts</text>
+  </g>`);
+  subBarY += groupGap;
+
+  for (const { sub, count } of subs) {
+    const w = (count / maxSubCount) * (subBarWidth - subBarLabelW - 80);
+    const pctStr = ((count / parentCount) * 100).toFixed(1) + '%';
+    subBarParts.push(`<g>
+      <text x="20" y="${subBarY + 14}" fill="#8b949e" font-size="11" font-family="-apple-system, sans-serif">${sub.replace(/_/g, ' ')}</text>
+      <rect x="${subBarLabelW}" y="${subBarY + 2}" width="${Math.max(w, 2)}" height="16" rx="3" fill="${color}" opacity="0.7"/>
+      <text x="${subBarLabelW + w + 6}" y="${subBarY + 14}" fill="#6e7681" font-size="10" font-family="monospace">${num(count)}</text>
+      <text x="${subBarWidth - 4}" y="${subBarY + 14}" fill="#6e7681" font-size="9" font-family="monospace" text-anchor="end">${pctStr}</text>
+    </g>`);
+    subBarY += subRowH;
+  }
+  subBarY += 8;
+}
+
+const subBarSvg = `<svg viewBox="0 0 ${subBarWidth} ${subBarY}" xmlns="http://www.w3.org/2000/svg">${subBarParts.join('')}</svg>`;
+
+// ── Section 4: Sub-tag compendium stacked bars ──
+const compendiumParts: { tag: string; count: number; color: string; subs: {sub: string; count: number}[]; stackedSvg: string }[] = [];
+
+for (const [parentTag] of parentTagsWithSubs) {
+  const subs = subTagsByParent.get(parentTag)!;
+  const parentCount = td[parentTag];
+  const color = tagColor(parentTag);
+  const subTotal = subs.reduce((s, st) => s + st.count, 0);
+  const stackW = 400;
+
+  // Stacked horizontal bar
+  let cx = 0;
+  const stackParts: string[] = [];
+  for (const { sub, count } of subs) {
+    const segW = Math.max((count / subTotal) * stackW, 1);
+    stackParts.push(`<rect x="${cx}" y="0" width="${segW}" height="20" fill="${color}" opacity="${0.5 + (count / subTotal) * 0.5}"/>`);
+    cx += segW;
+  }
+  const stackedSvg = `<svg viewBox="0 0 ${stackW} 20" xmlns="http://www.w3.org/2000/svg" style="border-radius: 4px; overflow: hidden;">${stackParts.join('')}</svg>`;
+
+  compendiumParts.push({ tag: parentTag, count: parentCount, color, subs, stackedSvg });
+}
+
+// ── Stats ──
+const totalSubTags = Object.keys(std).length;
+const totalSubTagged = Object.values(std).reduce((a, b) => a + b, 0);
+const avgCoverage = coverageData.filter(c => c.subTagCount > 0).reduce((s, c) => s + c.coverage, 0) / parentTagsWithSubs.length;
+---
+<Layout title="Taxonomy">
+  <h1>The Taxonomy of Discourse</h1>
+  <p style="color: var(--text-secondary); margin-top: var(--space-xs); margin-bottom: var(--space-xl);">
+    20 primary tags &middot; {totalSubTags} sub-tags &middot; {num(totalPosts)} classified posts
+  </p>
+
+  <div class="stat-row">
+    <StatCard label="Primary Tags" value="20" sub="heuristic classification" />
+    <StatCard label="Sub-Tags" value={String(totalSubTags)} sub={`across ${parentTagsWithSubs.length} categories`} />
+    <StatCard label="Sub-Tagged Posts" value={num(totalSubTagged)} sub={pct(totalSubTagged, totalPosts) + ' of corpus'} />
+    <StatCard label="Avg Coverage" value={(avgCoverage * 100).toFixed(1) + '%'} sub="sub-tag coverage per parent" />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Territorial Map</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Squarified treemap of 20 discourse tags. Area proportional to post count. Nested bands show sub-tag breakdown where available.
+    </p>
+    <div class="treemap-container" set:html={treemapSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Sub-Classification Distribution</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      All {totalSubTags} sub-tags grouped by parent category. Bars show absolute count; percentages relative to parent total.
+    </p>
+    <div class="bar-chart-container" set:html={subBarSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Classification Audit</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Coverage of sub-tag classification per parent category. Categories with 0% have no sub-tag classifiers defined.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Total Posts</th>
+          <th>Sub-Tagged</th>
+          <th>Sub-Tags</th>
+          <th>Coverage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {coverageData.map(c => (
+          <tr>
+            <td>
+              <span style={`display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${tagColor(c.tag)}; margin-right: 6px;`}></span>
+              <span class="tag" style={`background: ${tagColor(c.tag)}22; color: ${tagColor(c.tag)};`}>{c.tag}</span>
+            </td>
+            <td style="font-family: var(--font-mono);">{num(c.totalCount)}</td>
+            <td style="font-family: var(--font-mono);">{num(c.subTagged)}</td>
+            <td style="font-family: var(--font-mono);">{c.subTagCount}</td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style={`width: ${Math.max(c.coverage * 100, 0)}%; max-width: 120px; height: 8px; background: ${tagColor(c.tag)}; border-radius: 4px; opacity: 0.7; min-width: ${c.coverage > 0 ? '4px' : '0'};`} />
+                <span style="font-family: var(--font-mono); font-size: var(--font-size-xs); color: var(--text-secondary);">
+                  {(c.coverage * 100).toFixed(1)}%
+                </span>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Sub-Tag Compendium</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Detailed breakdown for each parent tag with sub-classifications.
+    </p>
+    <div class="compendium-grid">
+      {compendiumParts.map(cp => (
+        <div class="compendium-card card">
+          <div class="compendium-header">
+            <span style={`display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${cp.color}; margin-right: 8px;`}></span>
+            <span style={`color: ${cp.color}; font-weight: 600;`}>{cp.tag}</span>
+            <span style="color: var(--text-tertiary); font-family: var(--font-mono); font-size: var(--font-size-xs); margin-left: 8px;">{num(cp.count)} posts</span>
+          </div>
+          <div class="stacked-bar" set:html={cp.stackedSvg} />
+          <div class="sub-list">
+            {cp.subs.map(st => (
+              <div class="sub-row">
+                <span class="sub-label">{st.sub.replace(/_/g, ' ')}</span>
+                <span class="sub-count">{num(st.count)}</span>
+                <span class="sub-pct">{((st.count / cp.count) * 100).toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .treemap-container, .bar-chart-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow: hidden;
+  }
+
+  .treemap-container svg, .bar-chart-container svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .compendium-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-md);
+  }
+
+  .compendium-card {
+    padding: var(--space-md);
+  }
+
+  .compendium-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-sm);
+  }
+
+  .stacked-bar {
+    margin-bottom: var(--space-sm);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .stacked-bar svg {
+    width: 100%;
+    height: 20px;
+    display: block;
+  }
+
+  .sub-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sub-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 2px 0;
+    font-size: var(--font-size-xs);
+  }
+
+  .sub-label {
+    flex: 1;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .sub-count {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+    min-width: 50px;
+    text-align: right;
+  }
+
+  .sub-pct {
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    min-width: 45px;
+    text-align: right;
+  }
+
+  @media (max-width: 768px) {
+    .compendium-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

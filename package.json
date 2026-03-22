@@ -1,0 +1,38 @@
+{
+  "name": "threads-analysis",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Standalone Threads corpus analysis — information theory, knowledge graphs, discourse taxonomy for @maybe_foucault",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "sync": "node scripts/threads-sync.mjs",
+    "sync:replies": "node scripts/threads-backfill-replies.mjs",
+    "sync:metrics": "node scripts/threads-backfill-metrics.mjs",
+    "analyze": "node scripts/analysis/information-theory.mjs && node scripts/analysis/knowledge-graph.mjs",
+    "full": "npm run sync && npm run analyze",
+    "worker": "node scripts/sync-worker.mjs",
+    "db:seed": "node scripts/db-seed.mjs",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f sync",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "astro": "^5.17.0",
+    "@astrojs/node": "^9.0.0",
+    "@astrojs/react": "^4.0.0",
+    "force-graph": "^1.47.0",
+    "pg": "^8.13.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

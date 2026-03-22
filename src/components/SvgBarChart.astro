@@ -1,0 +1,75 @@
+---
+interface BarItem {
+  label: string;
+  value: number;
+  color?: string;
+  sub?: string;
+}
+
+interface Props {
+  items: BarItem[];
+  width?: number;
+  labelWidth?: number;
+  rowHeight?: number;
+  title?: string;
+  showValues?: boolean;
+}
+
+const {
+  items,
+  width = 700,
+  labelWidth = 160,
+  rowHeight = 22,
+  title,
+  showValues = true,
+} = Astro.props;
+
+const maxValue = Math.max(...items.map(i => i.value), 1);
+const chartHeight = items.length * rowHeight + 20;
+const barAreaWidth = width - labelWidth - 80;
+
+const bars = items.map((item, i) => {
+  const y = i * rowHeight + 10;
+  const w = (item.value / maxValue) * barAreaWidth;
+  const color = item.color || '#58a6ff';
+  const labelText = item.sub
+    ? `<text x="0" y="${y + 14}" fill="#8b949e" font-size="11" font-family="-apple-system, sans-serif">${item.label}</text><text x="${labelWidth - 4}" y="${y + 14}" fill="#6e7681" font-size="9" font-family="-apple-system, sans-serif" text-anchor="end">${item.sub}</text>`
+    : `<text x="0" y="${y + 14}" fill="#8b949e" font-size="11" font-family="-apple-system, sans-serif">${item.label}</text>`;
+  const valueText = showValues
+    ? `<text x="${labelWidth + w + 6}" y="${y + 14}" fill="#6e7681" font-size="10" font-family="monospace">${item.value.toLocaleString('en-US')}</text>`
+    : '';
+  return `<g>${labelText}<rect x="${labelWidth}" y="${y + 2}" width="${Math.max(w, 2)}" height="16" rx="3" fill="${color}" opacity="0.8"/>${valueText}</g>`;
+}).join('');
+
+const svg = `<svg viewBox="0 0 ${width} ${chartHeight}" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+---
+<div class="bar-chart-wrap">
+  {title && <h3 class="bar-chart-title">{title}</h3>}
+  <div class="bar-chart-container" set:html={svg} />
+</div>
+
+<style>
+  .bar-chart-wrap {
+    margin-bottom: var(--space-lg);
+  }
+
+  .bar-chart-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+    font-weight: 500;
+  }
+
+  .bar-chart-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow: hidden;
+  }
+
+  .bar-chart-container svg {
+    width: 100%;
+    height: auto;
+  }
+</style>

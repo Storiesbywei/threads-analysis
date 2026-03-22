@@ -1,0 +1,53 @@
+---
+interface Props {
+  label: string;
+  value: string | number;
+  unit?: string;
+  sub?: string;
+}
+
+const { label, value, unit, sub } = Astro.props;
+---
+<div class="stat-card card">
+  <div class="stat-label">{label}</div>
+  <div class="stat-value">
+    {value}
+    {unit && <span class="stat-unit">{unit}</span>}
+  </div>
+  {sub && <div class="stat-sub">{sub}</div>}
+</div>
+
+<style>
+  .stat-card {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .stat-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-xs);
+  }
+
+  .stat-value {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+  }
+
+  .stat-unit {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  .stat-sub {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+  }
+</style>

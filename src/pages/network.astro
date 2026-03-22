@@ -1,0 +1,139 @@
+---
+export const prerender = true;
+
+import fs from 'node:fs';
+import path from 'node:path';
+import Layout from '../layouts/Layout.astro';
+import StatCard from '../components/StatCard.astro';
+import KnowledgeGraph from '../components/react/KnowledgeGraph';
+import SyncIndicator from '../components/react/SyncIndicator';
+import { num } from '../lib/format';
+import type { KnowledgeGraphData } from '../lib/types';
+
+const dataDir = path.join(process.cwd(), 'public', 'data');
+const data: KnowledgeGraphData = JSON.parse(
+  fs.readFileSync(path.join(dataDir, 'knowledge-graph.json'), 'utf-8')
+);
+
+const { metadata, nodes, edges } = data;
+
+// Edge type breakdown
+const edgeTypeCounts: Record<string, number> = {};
+edges.forEach((e) => {
+  edgeTypeCounts[e.type] = (edgeTypeCounts[e.type] || 0) + 1;
+});
+const sortedEdgeTypes = Object.entries(edgeTypeCounts).sort((a, b) => b[1] - a[1]);
+
+// Node type breakdown
+const nodeTypeCounts: Record<string, number> = {};
+nodes.forEach((n) => {
+  nodeTypeCounts[n.type] = (nodeTypeCounts[n.type] || 0) + 1;
+});
+const sortedNodeTypes = Object.entries(nodeTypeCounts).sort((a, b) => b[1] - a[1]);
+
+const edgeTypeLabels: Record<string, string> = {
+  co_occurrence: 'Co-occurrence',
+  temporal: 'Temporal',
+  hierarchy: 'Hierarchy',
+  concept_link: 'Concept',
+  bridge_link: 'Bridge',
+};
+---
+<Layout title="Network" description="Knowledge graph visualization of the Threads corpus">
+  <div class="page-header">
+    <div>
+      <h1>Knowledge Graph</h1>
+      <p class="subtitle">
+        Force-directed network of tags, concepts, and co-occurrence patterns
+      </p>
+    </div>
+    <SyncIndicator client:load />
+  </div>
+
+  <div class="stat-row">
+    <StatCard label="Nodes" value={num(metadata.node_count)} sub={sortedNodeTypes.map(([t, c]) => `${c} ${t.replace('_', '-')}`).join(', ')} />
+    <StatCard label="Edges" value={num(metadata.edge_count)} sub={sortedEdgeTypes.map(([t, c]) => `${c} ${edgeTypeLabels[t] || t}`).join(', ')} />
+    <StatCard label="Tags" value={num(metadata.tag_count)} sub={`${num(metadata.sub_tag_count)} sub-tags`} />
+    <StatCard label="Posts" value={num(metadata.total_posts)} sub={`Generated ${new Date(data.generated_at).toLocaleDateString()}`} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Interactive Graph</h2>
+    <KnowledgeGraph client:only="react" nodes={nodes} edges={edges} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Edge Types</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Count</th>
+          <th>Share</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedEdgeTypes.map(([type, count]) => (
+          <tr>
+            <td style="font-family: var(--font-mono); font-size: var(--font-size-sm);">
+              {edgeTypeLabels[type] || type}
+            </td>
+            <td style="font-family: var(--font-mono);">{num(count)}</td>
+            <td style="font-family: var(--font-mono); color: var(--text-secondary);">
+              {((count / metadata.edge_count) * 100).toFixed(1)}%
+            </td>
+            <td>
+              <div style={`width: ${(count / sortedEdgeTypes[0][1]) * 100}%; height: 8px; background: #58a6ff; border-radius: 4px; opacity: 0.6;`} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Node Types</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Count</th>
+          <th>Share</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedNodeTypes.map(([type, count]) => (
+          <tr>
+            <td style="font-family: var(--font-mono); font-size: var(--font-size-sm);">
+              {type.replace('_', '-')}
+            </td>
+            <td style="font-family: var(--font-mono);">{num(count)}</td>
+            <td style="font-family: var(--font-mono); color: var(--text-secondary);">
+              {((count / metadata.node_count) * 100).toFixed(1)}%
+            </td>
+            <td>
+              <div style={`width: ${(count / sortedNodeTypes[0][1]) * 100}%; height: 8px; background: #58a6ff; border-radius: 4px; opacity: 0.6;`} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</Layout>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-xl);
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-sm);
+  }
+</style>

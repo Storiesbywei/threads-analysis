@@ -1,0 +1,132 @@
+---
+interface DayData {
+  date: string; // YYYY-MM-DD
+  count: number;
+}
+
+interface Props {
+  days: DayData[];
+  title?: string;
+  cellSize?: number;
+  cellGap?: number;
+}
+
+const {
+  days,
+  title,
+  cellSize = 12,
+  cellGap = 2,
+} = Astro.props;
+
+// Build a map of date -> count
+const countMap = new Map<string, number>();
+let maxCount = 0;
+for (const d of days) {
+  countMap.set(d.date, d.count);
+  if (d.count > maxCount) maxCount = d.count;
+}
+
+// Determine date range: last 12 months from the most recent date
+const allDates = days.map(d => d.date).sort();
+const lastDate = allDates.length > 0 ? new Date(allDates[allDates.length - 1]) : new Date();
+const startDate = new Date(lastDate);
+startDate.setFullYear(startDate.getFullYear() - 1);
+startDate.setDate(startDate.getDate() - startDate.getDay()); // align to Sunday
+
+// Color scale for heatmap
+function heatColor(count: number): string {
+  if (count === 0) return '#161b22';
+  const intensity = Math.min(count / Math.max(maxCount * 0.6, 1), 1);
+  if (intensity < 0.25) return '#0e4429';
+  if (intensity < 0.5) return '#006d32';
+  if (intensity < 0.75) return '#26a641';
+  return '#39d353';
+}
+
+// Generate cells
+const step = cellSize + cellGap;
+const cells: string[] = [];
+const monthLabels: string[] = [];
+const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+const current = new Date(startDate);
+let weekCol = 0;
+let lastMonth = -1;
+const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const labelOffset = 28;
+const topOffset = 20;
+
+// Day labels on left
+for (let i = 0; i < 7; i++) {
+  if (dayLabels[i]) {
+    cells.push(`<text x="0" y="${topOffset + i * step + 10}" fill="#6e7681" font-size="9" font-family="-apple-system, sans-serif">${dayLabels[i]}</text>`);
+  }
+}
+
+while (current <= lastDate) {
+  const dayOfWeek = current.getDay();
+  if (dayOfWeek === 0 && current > startDate) weekCol++;
+
+  const dateStr = current.toISOString().slice(0, 10);
+  const count = countMap.get(dateStr) || 0;
+  const x = labelOffset + weekCol * step;
+  const y = topOffset + dayOfWeek * step;
+  const color = heatColor(count);
+
+  cells.push(`<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" rx="2" fill="${color}" data-date="${dateStr}" data-count="${count}"><title>${dateStr}: ${count} posts</title></rect>`);
+
+  // Month labels
+  if (current.getMonth() !== lastMonth && current.getDate() <= 7) {
+    monthLabels.push(`<text x="${x}" y="12" fill="#8b949e" font-size="9" font-family="-apple-system, sans-serif">${monthNames[current.getMonth()]}</text>`);
+    lastMonth = current.getMonth();
+  }
+
+  current.setDate(current.getDate() + 1);
+}
+
+const svgWidth = labelOffset + (weekCol + 1) * step + 10;
+const svgHeight = topOffset + 7 * step + 10;
+
+// Legend
+const legendX = svgWidth - 120;
+const legendY = svgHeight - 14;
+const legendColors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'];
+const legendCells = legendColors.map((c, i) =>
+  `<rect x="${legendX + 50 + i * (cellSize + 2)}" y="${legendY}" width="${cellSize}" height="${cellSize}" rx="2" fill="${c}"/>`
+).join('');
+const legend = `<text x="${legendX}" y="${legendY + 10}" fill="#6e7681" font-size="9" font-family="-apple-system, sans-serif">Less</text>${legendCells}<text x="${legendX + 50 + legendColors.length * (cellSize + 2) + 4}" y="${legendY + 10}" fill="#6e7681" font-size="9" font-family="-apple-system, sans-serif">More</text>`;
+
+const svg = `<svg viewBox="0 0 ${svgWidth} ${svgHeight + 20}" xmlns="http://www.w3.org/2000/svg">${monthLabels.join('')}${cells.join('')}${legend}</svg>`;
+---
+<div class="heatmap-wrap">
+  {title && <h3 class="heatmap-title">{title}</h3>}
+  <div class="heatmap-container" set:html={svg} />
+</div>
+
+<style>
+  .heatmap-wrap {
+    margin-bottom: var(--space-lg);
+  }
+
+  .heatmap-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+    font-weight: 500;
+  }
+
+  .heatmap-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow-x: auto;
+  }
+
+  .heatmap-container svg {
+    width: 100%;
+    height: auto;
+    min-width: 700px;
+  }
+</style>

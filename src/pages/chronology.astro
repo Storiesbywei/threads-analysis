@@ -1,0 +1,383 @@
+---
+export const prerender = true;
+
+import fs from 'node:fs';
+import path from 'node:path';
+import Layout from '../layouts/Layout.astro';
+import StatCard from '../components/StatCard.astro';
+import SvgHeatmap from '../components/SvgHeatmap.astro';
+import { tagColor } from '../lib/colors';
+import { num, pct } from '../lib/format';
+import type { PostTagsData } from '../lib/types';
+
+const dataDir = path.join(process.cwd(), 'public', 'data');
+const data: PostTagsData = JSON.parse(
+  fs.readFileSync(path.join(dataDir, 'post-tags.json'), 'utf-8')
+);
+
+// Load raw posts for timestamps
+interface RawPost {
+  id: string;
+  text?: string;
+  timestamp: string;
+  is_reply?: boolean;
+  is_quote_post?: boolean;
+  media_type?: string;
+}
+
+let rawPosts: RawPost[] = [];
+try {
+  const rawData = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'data', 'threads', 'posts.json'), 'utf-8')
+  );
+  rawPosts = Array.isArray(rawData) ? rawData : rawData.posts || [];
+} catch {
+  // Fallback: no raw data
+}
+
+const { corpus_stats: cs, tag_distribution: td, posts: taggedPosts } = data;
+const sortedTags = Object.entries(td).sort((a, b) => b[1] - a[1]);
+
+// Build a lookup from post ID to tagged data
+const tagLookup = new Map(taggedPosts.map(p => [p.id, p]));
+
+// ── Parse timestamps & build time series ──
+interface TimedPost {
+  id: string;
+  date: string;       // YYYY-MM-DD
+  month: string;      // YYYY-MM
+  hour: number;
+  dayOfWeek: number;  // 0=Sun
+  isReply: boolean;
+  isQuote: boolean;
+  primaryTag: string;
+}
+
+const timedPosts: TimedPost[] = [];
+for (const rp of rawPosts) {
+  if (!rp.timestamp) continue;
+  const d = new Date(rp.timestamp);
+  if (isNaN(d.getTime())) continue;
+  const tagged = tagLookup.get(rp.id);
+  timedPosts.push({
+    id: rp.id,
+    date: d.toISOString().slice(0, 10),
+    month: d.toISOString().slice(0, 7),
+    hour: d.getUTCHours(),
+    dayOfWeek: d.getUTCDay(),
+    isReply: !!(rp.is_reply),
+    isQuote: !!(rp.is_quote_post),
+    primaryTag: tagged?.primary_tag || 'unclassified',
+  });
+}
+
+// ── Stats ──
+const uniqueDates = new Set(timedPosts.map(p => p.date));
+const activeDays = uniqueDates.size;
+const replies = timedPosts.filter(p => p.isReply).length;
+const quotes = timedPosts.filter(p => p.isQuote).length;
+const originals = timedPosts.length - replies - quotes;
+
+const allDates = [...uniqueDates].sort();
+const dateRange = allDates.length > 0
+  ? `${allDates[0]} to ${allDates[allDates.length - 1]}`
+  : 'N/A';
+const avgPerDay = activeDays > 0 ? (timedPosts.length / activeDays).toFixed(1) : '0';
+
+// ── Section 1: Monthly post count bars (stacked by variety) ──
+const monthlyData = new Map<string, { original: number; reply: number; quote: number }>();
+for (const p of timedPosts) {
+  if (!monthlyData.has(p.month)) monthlyData.set(p.month, { original: 0, reply: 0, quote: 0 });
+  const m = monthlyData.get(p.month)!;
+  if (p.isReply) m.reply++;
+  else if (p.isQuote) m.quote++;
+  else m.original++;
+}
+const sortedMonths = [...monthlyData.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+const maxMonthly = Math.max(...sortedMonths.map(([, v]) => v.original + v.reply + v.quote), 1);
+
+const monthBarW = 800;
+const monthBarH = 300;
+const monthPadL = 40;
+const monthPadB = 60;
+const monthPadT = 10;
+const barAreaW = monthBarW - monthPadL - 10;
+const barAreaH = monthBarH - monthPadB - monthPadT;
+const barW = Math.max(Math.floor(barAreaW / sortedMonths.length) - 2, 3);
+
+const monthBarParts: string[] = [];
+
+// Y-axis gridlines
+for (let i = 0; i <= 4; i++) {
+  const yVal = Math.round(maxMonthly * (i / 4));
+  const y = monthPadT + barAreaH - (barAreaH * (i / 4));
+  monthBarParts.push(`<line x1="${monthPadL}" y1="${y}" x2="${monthBarW - 10}" y2="${y}" stroke="#21262d" stroke-width="1"/>`);
+  monthBarParts.push(`<text x="${monthPadL - 4}" y="${y + 3}" fill="#6e7681" font-size="9" font-family="monospace" text-anchor="end">${yVal}</text>`);
+}
+
+const colorOriginal = '#58a6ff';
+const colorReply = '#8b949e';
+const colorQuote = '#d29922';
+
+sortedMonths.forEach(([month, counts], i) => {
+  const x = monthPadL + i * (barW + 2);
+  const total = counts.original + counts.reply + counts.quote;
+  const totalH = (total / maxMonthly) * barAreaH;
+
+  // Stack: originals bottom, replies middle, quotes top
+  const origH = (counts.original / maxMonthly) * barAreaH;
+  const replyH = (counts.reply / maxMonthly) * barAreaH;
+  const quoteH = (counts.quote / maxMonthly) * barAreaH;
+
+  const baseY = monthPadT + barAreaH;
+
+  monthBarParts.push(`<rect x="${x}" y="${baseY - origH}" width="${barW}" height="${origH}" fill="${colorOriginal}" opacity="0.8" rx="1"/>`);
+  monthBarParts.push(`<rect x="${x}" y="${baseY - origH - replyH}" width="${barW}" height="${replyH}" fill="${colorReply}" opacity="0.6" rx="1"/>`);
+  monthBarParts.push(`<rect x="${x}" y="${baseY - origH - replyH - quoteH}" width="${barW}" height="${quoteH}" fill="${colorQuote}" opacity="0.8" rx="1"/>`);
+
+  // X-axis label every 3 months
+  if (i % 3 === 0) {
+    const [yr, mo] = month.split('-');
+    const label = `${mo}/${yr.slice(2)}`;
+    monthBarParts.push(`<text x="${x + barW / 2}" y="${baseY + 14}" fill="#6e7681" font-size="8" font-family="-apple-system, sans-serif" text-anchor="middle" transform="rotate(45 ${x + barW / 2} ${baseY + 14})">${label}</text>`);
+  }
+});
+
+// Legend
+const legendY = monthBarH - 15;
+monthBarParts.push(`<rect x="${monthPadL}" y="${legendY}" width="10" height="10" rx="2" fill="${colorOriginal}" opacity="0.8"/>`);
+monthBarParts.push(`<text x="${monthPadL + 14}" y="${legendY + 9}" fill="#8b949e" font-size="9" font-family="-apple-system, sans-serif">Original</text>`);
+monthBarParts.push(`<rect x="${monthPadL + 70}" y="${legendY}" width="10" height="10" rx="2" fill="${colorReply}" opacity="0.6"/>`);
+monthBarParts.push(`<text x="${monthPadL + 84}" y="${legendY + 9}" fill="#8b949e" font-size="9" font-family="-apple-system, sans-serif">Reply</text>`);
+monthBarParts.push(`<rect x="${monthPadL + 130}" y="${legendY}" width="10" height="10" rx="2" fill="${colorQuote}" opacity="0.8"/>`);
+monthBarParts.push(`<text x="${monthPadL + 144}" y="${legendY + 9}" fill="#8b949e" font-size="9" font-family="-apple-system, sans-serif">Quote</text>`);
+
+const monthBarSvg = `<svg viewBox="0 0 ${monthBarW} ${monthBarH}" xmlns="http://www.w3.org/2000/svg">${monthBarParts.join('')}</svg>`;
+
+// ── Section 2: Calendar heatmap data ──
+const dailyCounts = new Map<string, number>();
+for (const p of timedPosts) {
+  dailyCounts.set(p.date, (dailyCounts.get(p.date) || 0) + 1);
+}
+const heatmapDays = [...dailyCounts.entries()].map(([date, count]) => ({ date, count }));
+
+// ── Section 3: Posting hour distribution (24-hour) ──
+const hourlyCounts = new Array(24).fill(0);
+for (const p of timedPosts) {
+  hourlyCounts[p.hour]++;
+}
+const maxHourly = Math.max(...hourlyCounts);
+const hourBarW = 700;
+const hourBarH = 180;
+const hourPadL = 30;
+const hourPadB = 30;
+const hourAreaW = hourBarW - hourPadL - 10;
+const hourAreaH = hourBarH - hourPadB - 10;
+const hourColW = Math.floor(hourAreaW / 24) - 2;
+
+const hourParts: string[] = [];
+// Gridlines
+for (let i = 0; i <= 3; i++) {
+  const yVal = Math.round(maxHourly * (i / 3));
+  const y = 10 + hourAreaH - (hourAreaH * (i / 3));
+  hourParts.push(`<line x1="${hourPadL}" y1="${y}" x2="${hourBarW - 10}" y2="${y}" stroke="#21262d" stroke-width="1"/>`);
+  hourParts.push(`<text x="${hourPadL - 4}" y="${y + 3}" fill="#6e7681" font-size="9" font-family="monospace" text-anchor="end">${yVal}</text>`);
+}
+
+for (let h = 0; h < 24; h++) {
+  const x = hourPadL + h * (hourColW + 2);
+  const barH = (hourlyCounts[h] / maxHourly) * hourAreaH;
+  const y = 10 + hourAreaH - barH;
+  // Color gradient: night (dark blue), morning (yellow), afternoon (orange), evening (purple)
+  let color: string;
+  if (h >= 0 && h < 6) color = '#3d59ab';
+  else if (h >= 6 && h < 12) color = '#d29922';
+  else if (h >= 12 && h < 18) color = '#c47a4a';
+  else color = '#7a4a8a';
+
+  hourParts.push(`<rect x="${x}" y="${y}" width="${hourColW}" height="${barH}" fill="${color}" opacity="0.7" rx="2"/>`);
+  hourParts.push(`<text x="${x + hourColW / 2}" y="${10 + hourAreaH + 14}" fill="#6e7681" font-size="8" font-family="monospace" text-anchor="middle">${String(h).padStart(2, '0')}</text>`);
+}
+
+const hourSvg = `<svg viewBox="0 0 ${hourBarW} ${hourBarH}" xmlns="http://www.w3.org/2000/svg">${hourParts.join('')}</svg>`;
+
+// ── Section 4: Day-of-week distribution ──
+const dowCounts = new Array(7).fill(0);
+const dowNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+for (const p of timedPosts) {
+  dowCounts[p.dayOfWeek]++;
+}
+const maxDow = Math.max(...dowCounts);
+const dowBarW = 500;
+const dowBarH = 7 * 28 + 20;
+
+const dowParts: string[] = [];
+for (let i = 0; i < 7; i++) {
+  const y = i * 28 + 10;
+  const w = (dowCounts[i] / maxDow) * (dowBarW - 120);
+  const isWeekend = i === 0 || i === 6;
+  const color = isWeekend ? '#d29922' : '#58a6ff';
+  dowParts.push(`<text x="0" y="${y + 16}" fill="#8b949e" font-size="12" font-family="-apple-system, sans-serif">${dowNames[i]}</text>`);
+  dowParts.push(`<rect x="50" y="${y + 2}" width="${w}" height="18" rx="3" fill="${color}" opacity="0.7"/>`);
+  dowParts.push(`<text x="${50 + w + 8}" y="${y + 16}" fill="#6e7681" font-size="10" font-family="monospace">${num(dowCounts[i])}</text>`);
+}
+
+const dowSvg = `<svg viewBox="0 0 ${dowBarW} ${dowBarH}" xmlns="http://www.w3.org/2000/svg">${dowParts.join('')}</svg>`;
+
+// ── Section 5: Tag evolution over time (top 5 tags, monthly counts) ──
+const top5Tags = sortedTags.slice(0, 5).map(([tag]) => tag);
+const tagMonthly = new Map<string, Map<string, number>>();
+for (const tag of top5Tags) {
+  tagMonthly.set(tag, new Map());
+}
+
+for (const p of timedPosts) {
+  if (top5Tags.includes(p.primaryTag)) {
+    const map = tagMonthly.get(p.primaryTag)!;
+    map.set(p.month, (map.get(p.month) || 0) + 1);
+  }
+}
+
+const allMonths = [...new Set(timedPosts.map(p => p.month))].sort();
+const evoW = 800;
+const evoH = 250;
+const evoPadL = 40;
+const evoPadB = 50;
+const evoPadT = 20;
+const evoAreaW = evoW - evoPadL - 20;
+const evoAreaH = evoH - evoPadB - evoPadT;
+
+// Find max monthly count across top 5
+let maxTagMonthly = 0;
+for (const [, map] of tagMonthly) {
+  for (const [, count] of map) {
+    if (count > maxTagMonthly) maxTagMonthly = count;
+  }
+}
+
+const evoParts: string[] = [];
+
+// Gridlines
+for (let i = 0; i <= 3; i++) {
+  const yVal = Math.round(maxTagMonthly * (i / 3));
+  const y = evoPadT + evoAreaH - (evoAreaH * (i / 3));
+  evoParts.push(`<line x1="${evoPadL}" y1="${y}" x2="${evoW - 20}" y2="${y}" stroke="#21262d" stroke-width="1"/>`);
+  evoParts.push(`<text x="${evoPadL - 4}" y="${y + 3}" fill="#6e7681" font-size="9" font-family="monospace" text-anchor="end">${yVal}</text>`);
+}
+
+// Draw line for each tag
+for (const tag of top5Tags) {
+  const map = tagMonthly.get(tag)!;
+  const color = tagColor(tag);
+  const points: string[] = [];
+
+  for (let mi = 0; mi < allMonths.length; mi++) {
+    const count = map.get(allMonths[mi]) || 0;
+    if (count === 0) continue;
+    const x = evoPadL + (mi / (allMonths.length - 1)) * evoAreaW;
+    const y = evoPadT + evoAreaH - (count / maxTagMonthly) * evoAreaH;
+    points.push(`${x},${y}`);
+  }
+
+  if (points.length > 1) {
+    evoParts.push(`<polyline points="${points.join(' ')}" fill="none" stroke="${color}" stroke-width="2" opacity="0.8"/>`);
+  }
+}
+
+// X-axis labels
+for (let mi = 0; mi < allMonths.length; mi++) {
+  if (mi % 4 === 0) {
+    const x = evoPadL + (mi / (allMonths.length - 1)) * evoAreaW;
+    const [yr, mo] = allMonths[mi].split('-');
+    evoParts.push(`<text x="${x}" y="${evoPadT + evoAreaH + 16}" fill="#6e7681" font-size="8" font-family="-apple-system, sans-serif" text-anchor="middle" transform="rotate(45 ${x} ${evoPadT + evoAreaH + 16})">${mo}/${yr.slice(2)}</text>`);
+  }
+}
+
+// Legend
+const evoLegendY = evoH - 10;
+top5Tags.forEach((tag, i) => {
+  const lx = evoPadL + i * 110;
+  evoParts.push(`<rect x="${lx}" y="${evoLegendY}" width="10" height="10" rx="2" fill="${tagColor(tag)}" opacity="0.8"/>`);
+  evoParts.push(`<text x="${lx + 14}" y="${evoLegendY + 9}" fill="#8b949e" font-size="9" font-family="-apple-system, sans-serif">${tag}</text>`);
+});
+
+const evoSvg = `<svg viewBox="0 0 ${evoW} ${evoH}" xmlns="http://www.w3.org/2000/svg">${evoParts.join('')}</svg>`;
+
+// ── Peak posting stats ──
+const peakDay = [...dailyCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+const peakMonth = sortedMonths.sort((a, b) => {
+  const ta = a[1].original + a[1].reply + a[1].quote;
+  const tb = b[1].original + b[1].reply + b[1].quote;
+  return tb - ta;
+})[0];
+const peakMonthTotal = peakMonth ? peakMonth[1].original + peakMonth[1].reply + peakMonth[1].quote : 0;
+const peakHour = hourlyCounts.indexOf(maxHourly);
+---
+<Layout title="Chronology">
+  <h1>The Chronology</h1>
+  <p style="color: var(--text-secondary); margin-top: var(--space-xs); margin-bottom: var(--space-xl);">
+    Temporal patterns across {num(timedPosts.length)} posts &middot; {num(activeDays)} active days &middot; {dateRange}
+  </p>
+
+  <div class="stat-row">
+    <StatCard label="Total Posts" value={num(timedPosts.length)} sub={`${num(originals)} original, ${num(replies)} replies, ${num(quotes)} quotes`} />
+    <StatCard label="Active Days" value={num(activeDays)} sub={`${avgPerDay} posts/day avg`} />
+    <StatCard label="Peak Day" value={peakDay ? peakDay[1].toString() : '0'} unit="posts" sub={peakDay ? peakDay[0] : ''} />
+    <StatCard label="Peak Hour" value={`${String(peakHour).padStart(2, '0')}:00`} unit="UTC" sub={`${num(maxHourly)} posts`} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">The Accumulation of Statements</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Monthly post volume, stacked by variety: original posts, replies, and quote-posts. Peak month: {peakMonth ? peakMonth[0] : 'N/A'} ({num(peakMonthTotal)} posts).
+    </p>
+    <div class="chart-container" set:html={monthBarSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">The Calendar of Presence</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Daily posting density over the last 12 months. Each cell is one day; darker green indicates higher volume.
+    </p>
+    <SvgHeatmap days={heatmapDays} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">The Horologium</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Posting frequency by hour of day (UTC). Night hours in blue, morning in gold, afternoon in amber, evening in purple.
+    </p>
+    <div class="chart-container" set:html={hourSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">The Weekly Rhythm</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Day-of-week distribution. Weekends highlighted in gold.
+    </p>
+    <div class="chart-container" set:html={dowSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Tag Evolution</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Monthly counts for the top 5 discourse tags over time. Gap-aware lines break when a tag has zero posts in a month.
+    </p>
+    <div class="chart-container" set:html={evoSvg} />
+  </div>
+</Layout>
+
+<style>
+  .chart-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow: hidden;
+  }
+
+  .chart-container svg {
+    width: 100%;
+    height: auto;
+  }
+</style>

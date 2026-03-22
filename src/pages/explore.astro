@@ -1,0 +1,35 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import PostExplorer from '../components/react/PostExplorer';
+import SyncIndicator from '../components/react/SyncIndicator';
+---
+<Layout title="Explore" description="Search and filter the @maybe_foucault Threads corpus">
+  <div class="page-header">
+    <div>
+      <h1>Explore Posts</h1>
+      <p class="subtitle">
+        Search, filter, and browse the full corpus with tag, surprise, and engagement filters
+      </p>
+    </div>
+    <SyncIndicator client:load />
+  </div>
+
+  <PostExplorer client:load />
+</Layout>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-xl);
+  }
+
+  .subtitle {
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-sm);
+  }
+</style>

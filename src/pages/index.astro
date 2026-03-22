@@ -1,0 +1,158 @@
+---
+export const prerender = true;
+
+import fs from 'node:fs';
+import path from 'node:path';
+import Layout from '../layouts/Layout.astro';
+import StatCard from '../components/StatCard.astro';
+import { tagColor } from '../lib/colors';
+import { num, bits, pct } from '../lib/format';
+import type { PostTagsData } from '../lib/types';
+
+const dataDir = path.join(process.cwd(), 'public', 'data');
+const data: PostTagsData = JSON.parse(
+  fs.readFileSync(path.join(dataDir, 'post-tags.json'), 'utf-8')
+);
+
+const { corpus_stats: cs, tag_distribution: td, posts } = data;
+const sortedTags = Object.entries(td).sort((a, b) => b[1] - a[1]);
+
+// Variety breakdown
+const replies = posts.filter(p => p.is_reply).length;
+const quotes = posts.filter(p => p.is_quote).length;
+const originals = posts.length - replies - quotes;
+
+// Surprise stats
+const surprises = posts.map(p => p.surprise).filter(s => s > 0);
+const avgSurprise = (surprises.reduce((a, b) => a + b, 0) / surprises.length);
+const maxSurprise = Math.max(...surprises);
+
+// Tag distribution bar chart
+const maxCount = sortedTags[0][1];
+const barWidth = 600;
+const barHeight = sortedTags.length * 24 + 20;
+const tagBars = sortedTags.map(([tag, count], i) => {
+  const w = (count / maxCount) * (barWidth - 180);
+  const y = i * 24 + 10;
+  const color = tagColor(tag);
+  return `<g>
+    <text x="0" y="${y + 14}" fill="#8b949e" font-size="11" font-family="-apple-system, sans-serif">${tag}</text>
+    <rect x="120" y="${y + 2}" width="${w}" height="16" rx="3" fill="${color}" opacity="0.8"/>
+    <text x="${120 + w + 6}" y="${y + 14}" fill="#6e7681" font-size="10" font-family="monospace">${num(count)}</text>
+  </g>`;
+}).join('');
+
+const tagBarsSvg = `<svg viewBox="0 0 ${barWidth} ${barHeight}" xmlns="http://www.w3.org/2000/svg">${tagBars}</svg>`;
+
+// Treemap data
+const totalPosts = cs.total_posts;
+const treemapW = 800;
+const treemapH = 400;
+
+function squarify(items: {tag: string; count: number}[], x: number, y: number, w: number, h: number): string[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) {
+    const { tag, count } = items[0];
+    const color = tagColor(tag);
+    const label = w > 50 ? `<text x="${x + 6}" y="${y + 16}" fill="#e6edf3" font-size="11" font-family="-apple-system, sans-serif" font-weight="600">${tag}</text>` : '';
+    const countLabel = w > 60 && h > 30 ? `<text x="${x + 6}" y="${y + 30}" fill="#8b949e" font-size="9" font-family="monospace">${num(count)}</text>` : '';
+    return [`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${color}" opacity="0.7" stroke="#0d1117" stroke-width="1"/>${label}${countLabel}`];
+  }
+  const total = items.reduce((s, i) => s + i.count, 0);
+  const mid = Math.ceil(items.length / 2);
+  const left = items.slice(0, mid);
+  const right = items.slice(mid);
+  const leftTotal = left.reduce((s, i) => s + i.count, 0);
+  const ratio = leftTotal / total;
+  if (w >= h) {
+    const splitX = x + w * ratio;
+    return [
+      ...squarify(left, x, y, w * ratio, h),
+      ...squarify(right, splitX, y, w * (1 - ratio), h),
+    ];
+  } else {
+    const splitY = y + h * ratio;
+    return [
+      ...squarify(left, x, y, w, h * ratio),
+      ...squarify(right, x, splitY, w, h * (1 - ratio)),
+    ];
+  }
+}
+
+const treemapItems = sortedTags.map(([tag, count]) => ({ tag, count }));
+const treemapRects = squarify(treemapItems, 0, 0, treemapW, treemapH);
+const treemapSvg = `<svg viewBox="0 0 ${treemapW} ${treemapH}" xmlns="http://www.w3.org/2000/svg">${treemapRects.join('')}</svg>`;
+---
+<Layout title="Overview">
+  <h1>Threads Analysis</h1>
+  <p style="color: var(--text-secondary); margin-top: var(--space-xs); margin-bottom: var(--space-xl);">
+    @maybe_foucault &middot; {num(cs.total_posts)} posts &middot; {num(cs.vocabulary_size)} unique words
+  </p>
+
+  <div class="stat-row">
+    <StatCard label="Total Posts" value={num(cs.total_posts)} sub={`${num(originals)} original, ${num(replies)} replies, ${num(quotes)} quotes`} />
+    <StatCard label="Vocabulary" value={num(cs.vocabulary_size)} unit="words" sub={`${num(cs.total_words)} total words`} />
+    <StatCard label="Word Entropy" value={cs.word_entropy.toFixed(3)} unit="bits" sub={`char: ${bits(cs.character_entropy)}`} />
+    <StatCard label="Zipf Exponent" value={cs.zipf_exponent.toFixed(3)} sub="~1.0 = natural language" />
+  </div>
+
+  <div class="stat-row">
+    <StatCard label="Tag Entropy" value={cs.tag_entropy.toFixed(3)} unit="bits" sub={`${sortedTags.length} categories`} />
+    <StatCard label="Bigram Entropy" value={cs.bigram_entropy.toFixed(3)} unit="bits" sub={`conditional: ${bits(cs.conditional_entropy)}`} />
+    <StatCard label="Avg Surprise" value={avgSurprise.toFixed(2)} unit="bits/word" sub={`max: ${maxSurprise.toFixed(1)}`} />
+    <StatCard label="Generated" value={new Date(data.generated_at).toLocaleDateString()} sub={new Date(data.generated_at).toLocaleTimeString()} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Tag Treemap</h2>
+    <div class="treemap-container" set:html={treemapSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Tag Distribution</h2>
+    <div class="bar-chart-container" set:html={tagBarsSvg} />
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Top Tags</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Tag</th>
+          <th>Count</th>
+          <th>Share</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sortedTags.slice(0, 10).map(([tag, count]) => (
+          <tr>
+            <td>
+              <span class="tag" style={`background: ${tagColor(tag)}22; color: ${tagColor(tag)};`}>{tag}</span>
+            </td>
+            <td style="font-family: var(--font-mono);">{num(count)}</td>
+            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{pct(count, totalPosts)}</td>
+            <td>
+              <div style={`width: ${(count / maxCount) * 100}%; height: 8px; background: ${tagColor(tag)}; border-radius: 4px; opacity: 0.7;`} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</Layout>
+
+<style>
+  .treemap-container, .bar-chart-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow: hidden;
+  }
+
+  .treemap-container svg, .bar-chart-container svg {
+    width: 100%;
+    height: auto;
+  }
+</style>

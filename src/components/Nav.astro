@@ -1,0 +1,138 @@
+---
+interface Props {
+  currentPath: string;
+}
+
+const { currentPath } = Astro.props;
+
+const links = [
+  { href: '/', label: 'Overview', icon: 'O' },
+  { href: '/taxonomy', label: 'Taxonomy', icon: 'T' },
+  { href: '/chronology', label: 'Chronology', icon: 'C' },
+  { href: '/discourse', label: 'Discourse', icon: 'D' },
+  { href: '/network', label: 'Network', icon: 'N' },
+  { href: '/explore', label: 'Explore', icon: 'E' },
+  { href: '/interactions', label: 'Interactions', icon: 'I' },
+];
+
+function isActive(href: string): boolean {
+  if (href === '/') return currentPath === '/';
+  return currentPath.startsWith(href);
+}
+---
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <span class="logo">@maybe_foucault</span>
+    <span class="subtitle">threads analysis</span>
+  </div>
+  <ul class="nav-links">
+    {links.map(link => (
+      <li>
+        <a href={link.href} class:list={['nav-link', { active: isActive(link.href) }]}>
+          <span class="nav-icon">{link.icon}</span>
+          <span class="nav-label">{link.label}</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+  <div class="sidebar-footer">
+    <span class="corpus-label">46K posts</span>
+  </div>
+</nav>
+
+<style>
+  .sidebar {
+    width: 200px;
+    min-height: 100vh;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-md) 0;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .sidebar-header {
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-md);
+  }
+
+  .logo {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+  }
+
+  .subtitle {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+
+  .nav-links {
+    list-style: none;
+    flex: 1;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    transition: background 0.1s, color 0.1s;
+  }
+
+  .nav-link:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .nav-link.active {
+    color: var(--text-primary);
+    background: var(--accent-muted);
+    border-right: 2px solid var(--accent);
+  }
+
+  .nav-icon {
+    width: 20px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-weight: 700;
+  }
+
+  .nav-link.active .nav-icon { color: var(--accent); }
+
+  .sidebar-footer {
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--border);
+  }
+
+  .corpus-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      width: 60px;
+      position: fixed;
+      z-index: 10;
+    }
+    .nav-label, .sidebar-header .logo, .subtitle, .sidebar-footer { display: none; }
+    .nav-link { justify-content: center; padding: var(--space-md) 0; }
+    .nav-icon { width: auto; font-size: var(--font-size-md); }
+  }
+</style>

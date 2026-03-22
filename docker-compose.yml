@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: threads
+      POSTGRES_USER: threads
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-threads_local_dev}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U threads -d threads"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      THREADS_ACCESS_TOKEN: ${THREADS_ACCESS_TOKEN}
+      THREADS_USER_ID: ${THREADS_USER_ID}
+      THREADS_APP_ID: ${THREADS_APP_ID}
+      APP_SECRETS: ${APP_SECRETS}
+      THREADS_USER_SECRETS: ${THREADS_USER_SECRETS}
+      DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-30}
+      METRICS_BATCH_SIZE: ${METRICS_BATCH_SIZE:-200}
+      FULL_SYNC_ON_START: ${FULL_SYNC_ON_START:-false}
+    volumes:
+      - ./data:/app/data
+      - ./public/data:/app/public/data
+
+volumes:
+  pgdata:

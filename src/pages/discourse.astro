@@ -1,0 +1,603 @@
+---
+export const prerender = true;
+
+import fs from 'node:fs';
+import path from 'node:path';
+import Layout from '../layouts/Layout.astro';
+import StatCard from '../components/StatCard.astro';
+import { tagColor } from '../lib/colors';
+import { num, pct, bits } from '../lib/format';
+import type { PostTagsData } from '../lib/types';
+
+const dataDir = path.join(process.cwd(), 'public', 'data');
+const data: PostTagsData = JSON.parse(
+  fs.readFileSync(path.join(dataDir, 'post-tags.json'), 'utf-8')
+);
+
+// Load raw posts for full text
+interface RawPost {
+  id: string;
+  text?: string;
+  timestamp?: string;
+}
+
+const rawPostMap = new Map<string, string>();
+try {
+  const rawData = JSON.parse(
+    fs.readFileSync(path.join(process.cwd(), 'data', 'threads', 'posts.json'), 'utf-8')
+  );
+  const rawArr: RawPost[] = Array.isArray(rawData) ? rawData : rawData.posts || [];
+  for (const rp of rawArr) {
+    if (rp.text) rawPostMap.set(rp.id, rp.text);
+  }
+} catch {
+  // no raw data available
+}
+
+const { corpus_stats: cs, tag_distribution: td, sub_tag_distribution: std, category_entropies: ce, posts } = data;
+const totalPosts = cs.total_posts;
+
+// ── Group sub-tags by parent ──
+const subTagsByParent = new Map<string, { sub: string; fullTag: string; count: number }[]>();
+for (const [subTag, count] of Object.entries(std)) {
+  const [parent, child] = subTag.split(':');
+  if (!subTagsByParent.has(parent)) subTagsByParent.set(parent, []);
+  subTagsByParent.get(parent)!.push({ sub: child, fullTag: subTag, count });
+}
+for (const [, subs] of subTagsByParent) {
+  subs.sort((a, b) => b.count - a.count);
+}
+
+// The 9 discourse categories (those with sub-tags)
+const nineCategories = [
+  'race', 'sex-gender', 'philosophy', 'tech', 'political',
+  'reaction', 'one-liner', 'question', 'media'
+].filter(c => subTagsByParent.has(c));
+
+// ── Build per-category data ──
+interface SamplePost {
+  id: string;
+  text: string;
+  surprise: number;
+  wordCount: number;
+}
+
+interface SubWithSamples {
+  sub: string;
+  fullTag: string;
+  count: number;
+  samples: SamplePost[];
+}
+
+interface CategoryData {
+  tag: string;
+  color: string;
+  postCount: number;
+  subsWithSamples: SubWithSamples[];
+  maxSubCount: number;
+  entropy: number;
+  vocabulary: number;
+  normalized: number;
+  postsAnalyzed: number;
+  stackedBarSvg: string;
+}
+
+const categories: CategoryData[] = [];
+
+for (const tag of nineCategories) {
+  const subs = subTagsByParent.get(tag) || [];
+  const color = tagColor(tag);
+  const postCount = td[tag] || 0;
+  const catEntropy = ce[tag] || { entropy: 0, vocabulary: 0, posts: 0, normalized: 0 };
+
+  // Build stacked bar
+  const subTotal = subs.reduce((s, st) => s + st.count, 0);
+  const stackW = 600;
+  let cx = 0;
+  const stackParts: string[] = [];
+  for (const { sub, count } of subs) {
+    const segW = Math.max((count / Math.max(subTotal, 1)) * stackW, 2);
+    stackParts.push(`<rect x="${cx}" y="0" width="${segW}" height="24" fill="${color}" opacity="${0.4 + (count / Math.max(subTotal, 1)) * 0.6}"><title>${sub.replace(/_/g, ' ')}: ${count}</title></rect>`);
+    cx += segW;
+  }
+  const stackedBarSvg = `<svg viewBox="0 0 ${stackW} 24" xmlns="http://www.w3.org/2000/svg" style="border-radius: 4px; overflow: hidden;">${stackParts.join('')}</svg>`;
+
+  // Sample posts: top 3 highest surprise per sub-tag
+  const subsWithSamples: SubWithSamples[] = subs.map(({ sub, fullTag, count }) => {
+    const samples = posts
+      .filter(p => p.sub_tags.includes(fullTag))
+      .sort((a, b) => b.surprise - a.surprise)
+      .slice(0, 3)
+      .map(p => ({
+        id: p.id,
+        text: (rawPostMap.get(p.id) || '[text unavailable]').replace(/https?:\/\/\S+/g, '[link]').slice(0, 280),
+        surprise: p.surprise,
+        wordCount: p.word_count,
+      }));
+    return { sub, fullTag, count, samples };
+  });
+
+  const maxSubCount = subs.length > 0 ? Math.max(...subs.map(s => s.count)) : 1;
+
+  categories.push({
+    tag,
+    color,
+    postCount,
+    subsWithSamples,
+    maxSubCount,
+    entropy: catEntropy.entropy,
+    vocabulary: catEntropy.vocabulary,
+    normalized: catEntropy.normalized,
+    postsAnalyzed: catEntropy.posts,
+    stackedBarSvg,
+  });
+}
+
+// ── Surprise distribution histogram ──
+const surprises = posts.map(p => p.surprise).filter(s => s > 0);
+const minSurprise = Math.min(...surprises);
+const maxSurprise = Math.max(...surprises);
+const bucketCount = 30;
+const bucketSize = (maxSurprise - minSurprise) / bucketCount;
+const buckets = new Array(bucketCount).fill(0);
+for (const s of surprises) {
+  const idx = Math.min(Math.floor((s - minSurprise) / bucketSize), bucketCount - 1);
+  buckets[idx]++;
+}
+const maxBucket = Math.max(...buckets);
+
+const histW = 700;
+const histH = 200;
+const histPadL = 40;
+const histPadB = 30;
+const histAreaW = histW - histPadL - 10;
+const histAreaH = histH - histPadB - 10;
+const histColW = Math.floor(histAreaW / bucketCount) - 1;
+
+const histParts: string[] = [];
+// Gridlines
+for (let i = 0; i <= 3; i++) {
+  const yVal = Math.round(maxBucket * (i / 3));
+  const y = 10 + histAreaH - (histAreaH * (i / 3));
+  histParts.push(`<line x1="${histPadL}" y1="${y}" x2="${histW - 10}" y2="${y}" stroke="#21262d" stroke-width="1"/>`);
+  histParts.push(`<text x="${histPadL - 4}" y="${y + 3}" fill="#6e7681" font-size="9" font-family="monospace" text-anchor="end">${yVal}</text>`);
+}
+
+for (let i = 0; i < bucketCount; i++) {
+  const x = histPadL + i * (histColW + 1);
+  const barH = (buckets[i] / maxBucket) * histAreaH;
+  const y = 10 + histAreaH - barH;
+  // Color by surprise level: low=green, mid=yellow, high=red
+  const ratio = i / bucketCount;
+  let color: string;
+  if (ratio < 0.33) color = '#3fb950';
+  else if (ratio < 0.66) color = '#d29922';
+  else color = '#f85149';
+
+  histParts.push(`<rect x="${x}" y="${y}" width="${histColW}" height="${barH}" fill="${color}" opacity="0.7" rx="1"/>`);
+
+  // X-axis labels every 5 buckets
+  if (i % 5 === 0) {
+    const val = (minSurprise + i * bucketSize).toFixed(1);
+    histParts.push(`<text x="${x}" y="${10 + histAreaH + 14}" fill="#6e7681" font-size="8" font-family="monospace" text-anchor="middle">${val}</text>`);
+  }
+}
+// Final x-axis label
+histParts.push(`<text x="${histPadL + bucketCount * (histColW + 1)}" y="${10 + histAreaH + 14}" fill="#6e7681" font-size="8" font-family="monospace" text-anchor="middle">${maxSurprise.toFixed(1)}</text>`);
+histParts.push(`<text x="${histW / 2}" y="${histH - 4}" fill="#6e7681" font-size="9" font-family="-apple-system, sans-serif" text-anchor="middle">Surprise (bits/word)</text>`);
+
+const histSvg = `<svg viewBox="0 0 ${histW} ${histH}" xmlns="http://www.w3.org/2000/svg">${histParts.join('')}</svg>`;
+
+// ── Tag co-occurrence table ──
+const coOccurrences = new Map<string, number>();
+for (const p of posts) {
+  if (p.tags.length < 2) continue;
+  const tags = [...p.tags].sort();
+  for (let i = 0; i < tags.length; i++) {
+    for (let j = i + 1; j < tags.length; j++) {
+      const key = `${tags[i]}|${tags[j]}`;
+      coOccurrences.set(key, (coOccurrences.get(key) || 0) + 1);
+    }
+  }
+}
+const sortedCoOcc = [...coOccurrences.entries()]
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 15);
+
+// ── Average surprise per sub-tag ──
+const subTagSurprise = new Map<string, { total: number; count: number }>();
+for (const p of posts) {
+  for (const st of p.sub_tags) {
+    if (!subTagSurprise.has(st)) subTagSurprise.set(st, { total: 0, count: 0 });
+    const entry = subTagSurprise.get(st)!;
+    entry.total += p.surprise;
+    entry.count++;
+  }
+}
+const subTagAvgSurprise = [...subTagSurprise.entries()]
+  .map(([tag, { total, count }]) => ({ tag, avg: total / count, count }))
+  .sort((a, b) => b.avg - a.avg);
+
+const maxAvgSurprise = subTagAvgSurprise.length > 0 ? subTagAvgSurprise[0].avg : 1;
+
+// Sub-tag surprise bar chart
+const stSurpW = 700;
+const stSurpLabelW = 200;
+const stSurpRowH = 22;
+const stSurpH = subTagAvgSurprise.length * stSurpRowH + 20;
+
+const stSurpParts: string[] = [];
+for (let i = 0; i < subTagAvgSurprise.length; i++) {
+  const { tag, avg, count } = subTagAvgSurprise[i];
+  const y = i * stSurpRowH + 10;
+  const w = (avg / maxAvgSurprise) * (stSurpW - stSurpLabelW - 100);
+  const [parent] = tag.split(':');
+  const color = tagColor(parent);
+  stSurpParts.push(`<text x="0" y="${y + 14}" fill="#8b949e" font-size="10" font-family="-apple-system, sans-serif">${tag.replace(/_/g, ' ')}</text>`);
+  stSurpParts.push(`<rect x="${stSurpLabelW}" y="${y + 2}" width="${Math.max(w, 2)}" height="16" rx="3" fill="${color}" opacity="0.7"/>`);
+  stSurpParts.push(`<text x="${stSurpLabelW + w + 6}" y="${y + 14}" fill="#6e7681" font-size="9" font-family="monospace">${avg.toFixed(2)} bits</text>`);
+  stSurpParts.push(`<text x="${stSurpW - 4}" y="${y + 14}" fill="#6e7681" font-size="8" font-family="monospace" text-anchor="end">n=${count}</text>`);
+}
+const stSurpSvg = `<svg viewBox="0 0 ${stSurpW} ${stSurpH}" xmlns="http://www.w3.org/2000/svg">${stSurpParts.join('')}</svg>`;
+
+// ── Foucault Index ──
+let foucaultPosts: { text: string; mentions: number }[] = [];
+let totalFoucaultMentions = 0;
+const foucaultRegex = /foucault/gi;
+for (const [, text] of rawPostMap) {
+  const matches = text.match(foucaultRegex);
+  if (matches) {
+    totalFoucaultMentions += matches.length;
+    foucaultPosts.push({ text: text.replace(/https?:\/\/\S+/g, '[link]').slice(0, 300), mentions: matches.length });
+  }
+}
+foucaultPosts.sort((a, b) => b.mentions - a.mentions);
+const foucaultPostCount = foucaultPosts.length;
+const topFoucaultPosts = foucaultPosts.slice(0, 10);
+
+// Foucault-adjacent terms
+const foucaultTerms: { term: string; count: number }[] = [];
+const fTermList = ['panopticon', 'biopolitics', 'governmentality', 'discourse', 'episteme', 'genealogy', 'archaeology', 'dispositif', 'subjectivation', 'heterotopia', 'power/knowledge', 'disciplinary'];
+for (const term of fTermList) {
+  let count = 0;
+  const re = new RegExp(term, 'gi');
+  for (const [, text] of rawPostMap) {
+    const m = text.match(re);
+    if (m) count += m.length;
+  }
+  if (count > 0) foucaultTerms.push({ term, count });
+}
+foucaultTerms.sort((a, b) => b.count - a.count);
+
+const maxFTermCount = foucaultTerms.length > 0 ? foucaultTerms[0].count : 1;
+const fTermBarW = 500;
+const fTermBarH = foucaultTerms.length * 24 + 20;
+const fTermParts: string[] = [];
+for (let i = 0; i < foucaultTerms.length; i++) {
+  const { term, count } = foucaultTerms[i];
+  const y = i * 24 + 10;
+  const w = (count / maxFTermCount) * (fTermBarW - 180);
+  fTermParts.push(`<text x="0" y="${y + 14}" fill="#8b949e" font-size="11" font-family="-apple-system, sans-serif">${term}</text>`);
+  fTermParts.push(`<rect x="130" y="${y + 2}" width="${Math.max(w, 2)}" height="16" rx="3" fill="#ab6acf" opacity="0.7"/>`);
+  fTermParts.push(`<text x="${130 + w + 6}" y="${y + 14}" fill="#6e7681" font-size="10" font-family="monospace">${count}</text>`);
+}
+const fTermSvg = `<svg viewBox="0 0 ${fTermBarW} ${fTermBarH}" xmlns="http://www.w3.org/2000/svg">${fTermParts.join('')}</svg>`;
+
+// ── Multi-category posts (posts spanning 2+ of the 9 discourse categories) ──
+const nineCatSet = new Set(nineCategories);
+const multiCatPosts = posts
+  .filter(p => {
+    const discTags = p.tags.filter(t => nineCatSet.has(t));
+    return discTags.length >= 2;
+  })
+  .sort((a, b) => b.surprise - a.surprise)
+  .slice(0, 5)
+  .map(p => ({
+    text: (rawPostMap.get(p.id) || '[text unavailable]').replace(/https?:\/\/\S+/g, '[link]').slice(0, 300),
+    surprise: p.surprise,
+    wordCount: p.word_count,
+    tags: p.tags,
+  }));
+
+// ── Overall stats ──
+const avgSurprise = surprises.length > 0 ? (surprises.reduce((a, b) => a + b, 0) / surprises.length) : 0;
+const totalSubTagged = Object.values(std).reduce((a, b) => a + b, 0);
+const multiTagCount = posts.filter(p => p.tags.length >= 2).length;
+const multiTagPct = pct(multiTagCount, totalPosts) + ' of corpus';
+
+// Pre-compute co-occurrence table rows for template
+const coOccRows = sortedCoOcc.map(([pair, count]) => {
+  const [tagA, tagB] = pair.split('|');
+  const maxCoOcc = sortedCoOcc[0][1];
+  const barWidthPct = (count / maxCoOcc) * 100;
+  return { tagA, tagB, count, barWidthPct };
+});
+
+// Pre-compute Foucault density
+const foucaultDensityStr = rawPostMap.size > 0
+  ? (foucaultPostCount / rawPostMap.size * 100).toFixed(2) + '%'
+  : 'N/A';
+
+// Pre-filter sub-tags with samples
+for (const cat of categories) {
+  cat.subsWithSamples = cat.subsWithSamples.filter(st => st.samples.length > 0);
+}
+---
+<Layout title="Discourse">
+  <h1>The Discourse Archive</h1>
+  <p style="color: var(--text-secondary); margin-top: var(--space-xs); margin-bottom: var(--space-xl);">
+    9 discourse categories &middot; {Object.keys(std).length} sub-tags &middot; {num(totalSubTagged)} sub-classified posts
+  </p>
+
+  <div class="stat-row">
+    <StatCard label="Categories" value="9" sub="with sub-tag classifiers" />
+    <StatCard label="Sub-Tags" value={String(Object.keys(std).length)} sub="regex-based classification" />
+    <StatCard label="Avg Surprise" value={avgSurprise.toFixed(2)} unit="bits" sub={`max: ${maxSurprise.toFixed(1)}`} />
+    <StatCard label="Multi-Tag Posts" value={num(multiTagCount)} sub={multiTagPct} />
+  </div>
+
+  <!-- ── The Nine Categories ── -->
+  {categories.map(cat => (
+    <div class="section category-section">
+      <h2 class="section-title" style={`border-bottom-color: ${cat.color};`}>
+        <span style={`display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: ${cat.color}; margin-right: 8px; vertical-align: middle;`}></span>
+        {cat.tag}
+        <span style="font-size: var(--font-size-sm); color: var(--text-tertiary); font-weight: 400; margin-left: 8px;">{num(cat.postCount)} posts</span>
+      </h2>
+
+      <div class="cat-stacked-bar" set:html={cat.stackedBarSvg} />
+
+      <div class="sub-legend">
+        {cat.subsWithSamples.map(st => (
+          <span class="sub-legend-item">
+            <span style={`display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: ${cat.color}; opacity: ${0.4 + (st.count / cat.maxSubCount) * 0.6}; margin-right: 4px;`}></span>
+            {st.sub.replace(/_/g, ' ')} ({num(st.count)})
+          </span>
+        ))}
+      </div>
+
+      <div class="stat-row" style="margin-top: var(--space-md);">
+        <StatCard label="Entropy" value={cat.entropy.toFixed(2)} unit="bits" sub="vocabulary entropy" />
+        <StatCard label="Vocabulary" value={num(cat.vocabulary)} unit="words" sub="distinct terms" />
+        <StatCard label="Normalized" value={cat.normalized.toFixed(3)} sub="entropy / log2(n)" />
+        <StatCard label="Posts Analyzed" value={num(cat.postsAnalyzed)} sub="including multi-tag" />
+      </div>
+
+      <div class="sub-samples">
+        {cat.subsWithSamples.map(st => (
+          <div class="sub-sample-block">
+            <h4 style={`color: ${cat.color}; font-size: var(--font-size-sm);`}>
+              {st.sub.replace(/_/g, ' ')}
+              <span style="color: var(--text-tertiary); font-weight: 400; font-size: var(--font-size-xs); margin-left: 6px;">{num(st.count)} posts</span>
+            </h4>
+            {st.samples.map(sp => (
+              <blockquote class="sample-post">
+                <p>{sp.text}</p>
+                <footer>
+                  <span class="sample-meta">{sp.surprise.toFixed(2)} bits</span>
+                  <span class="sample-meta">{sp.wordCount} words</span>
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  ))}
+
+  <!-- ── Surprise Distribution ── -->
+  <div class="section">
+    <h2 class="section-title">Surprise Distribution</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Histogram of per-post information surprise across the corpus. Low surprise (green) = predictable topic; high surprise (red) = unexpected content.
+    </p>
+    <div class="chart-container" set:html={histSvg} />
+  </div>
+
+  <!-- ── Tag Co-occurrence ── -->
+  <div class="section">
+    <h2 class="section-title">Tag Co-occurrence</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      Most common tag pairs appearing together on the same post.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Tag A</th>
+          <th>Tag B</th>
+          <th>Co-occurrences</th>
+          <th>Distribution</th>
+        </tr>
+      </thead>
+      <tbody>
+        {coOccRows.map(row => (
+          <tr>
+            <td>
+              <span class="tag" style={`background: ${tagColor(row.tagA)}22; color: ${tagColor(row.tagA)};`}>{row.tagA}</span>
+            </td>
+            <td>
+              <span class="tag" style={`background: ${tagColor(row.tagB)}22; color: ${tagColor(row.tagB)};`}>{row.tagB}</span>
+            </td>
+            <td style="font-family: var(--font-mono);">{num(row.count)}</td>
+            <td>
+              <div style={`width: ${row.barWidthPct}%; height: 8px; background: var(--accent); border-radius: 4px; opacity: 0.6;`} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Average Surprise by Sub-Tag ── -->
+  <div class="section">
+    <h2 class="section-title">Average Surprise by Sub-Tag</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      All {subTagAvgSurprise.length} sub-tags ranked by average information surprise. Higher = more unpredictable content within that classification.
+    </p>
+    <div class="chart-container" set:html={stSurpSvg} />
+  </div>
+
+  <!-- ── The Foucault Index ── -->
+  <div class="section">
+    <h2 class="section-title">The Foucault Index</h2>
+    <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+      How much does @maybe_foucault talk about Foucault?
+    </p>
+
+    <div class="stat-row">
+      <StatCard label="Posts Mentioning Foucault" value={num(foucaultPostCount)} sub={pct(foucaultPostCount, totalPosts) + ' of all posts'} />
+      <StatCard label="Total Mentions" value={num(totalFoucaultMentions)} sub="aggregate word count" />
+      <StatCard label="Foucault Density" value={foucaultDensityStr} sub="of posts with text" />
+    </div>
+
+    {topFoucaultPosts.length > 0 && (
+      <div class="foucault-posts">
+        <h3 style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-sm);">Top 10 Most Foucault-Heavy Posts</h3>
+        {topFoucaultPosts.map(fp => (
+          <blockquote class="sample-post">
+            <p>{fp.text}</p>
+            <footer>
+              <span class="sample-meta">{fp.mentions} mention{fp.mentions > 1 ? 's' : ''}</span>
+            </footer>
+          </blockquote>
+        ))}
+      </div>
+    )}
+
+    {foucaultTerms.length > 0 && (
+      <div style="margin-top: var(--space-lg);">
+        <h3 style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-sm);">The Foucault Lexicon</h3>
+        <div class="chart-container" set:html={fTermSvg} />
+      </div>
+    )}
+  </div>
+
+  <!-- ── Cross-Category: Highest-Surprise Multi-Category Posts ── -->
+  {multiCatPosts.length > 0 && (
+    <div class="section">
+      <h2 class="section-title">Highest-Surprise Multi-Category Posts</h2>
+      <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+        The most informationally surprising posts that span multiple discourse categories simultaneously.
+      </p>
+      {multiCatPosts.map(mp => (
+        <div class="multi-cat-card card" style="margin-bottom: var(--space-md); padding: var(--space-md);">
+          <blockquote class="sample-post" style="border: none; margin: 0; padding: 0;">
+            <p>{mp.text}</p>
+            <footer>
+              <span class="sample-meta">{mp.surprise.toFixed(2)} bits</span>
+              <span class="sample-meta">{mp.wordCount} words</span>
+            </footer>
+          </blockquote>
+          <div style="margin-top: var(--space-sm);">
+            {mp.tags.map(t => (
+              <span class="tag" style={`background: ${tagColor(t)}22; color: ${tagColor(t)}; margin-right: 4px;`}>{t}</span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</Layout>
+
+<style>
+  .chart-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    overflow: hidden;
+  }
+
+  .chart-container svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .cat-stacked-bar {
+    margin-bottom: var(--space-sm);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .cat-stacked-bar svg {
+    width: 100%;
+    height: 24px;
+    display: block;
+  }
+
+  .sub-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+  }
+
+  .sub-legend-item {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+  }
+
+  .category-section {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-lg);
+  }
+
+  .sub-samples {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-md);
+    margin-top: var(--space-md);
+  }
+
+  .sub-sample-block {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+  }
+
+  .sub-sample-block h4 {
+    margin-bottom: var(--space-sm);
+    margin-top: 0;
+  }
+
+  .sample-post {
+    border-left: 2px solid var(--border);
+    padding: var(--space-sm) var(--space-md);
+    margin: var(--space-sm) 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .sample-post p {
+    margin-bottom: var(--space-xs);
+  }
+
+  .sample-post footer {
+    display: flex;
+    gap: var(--space-md);
+  }
+
+  .sample-meta {
+    font-size: var(--font-size-xs);
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+  }
+
+  .foucault-posts {
+    margin-top: var(--space-md);
+  }
+
+  .multi-cat-card {
+    background: var(--bg-secondary);
+  }
+
+  @media (max-width: 768px) {
+    .sub-samples {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
