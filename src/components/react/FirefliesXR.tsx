@@ -674,44 +674,9 @@ export default function FirefliesXR() {
           galaxyGroup.add(glowSphere);
         }
 
-        // ── Cross-galaxy links for multi-tag posts ──────────────────────
-        // Posts with multiple tags create faint lines between their tag clusters
-        const linkPositions: number[] = [];
-        const linkColors: number[] = [];
-        for (const node of nodes) {
-          if (node.subTags && node.subTags.length > 1) {
-            // Find the parent tags of the sub-tags
-            const parentTags = new Set(node.subTags.map((st: string) => st.split(':')[0]));
-            if (parentTags.size > 1) {
-              const tagArr = [...parentTags];
-              for (let a = 0; a < tagArr.length; a++) {
-                for (let b = a + 1; b < tagArr.length; b++) {
-                  const ca = tagCenters[tagArr[a]];
-                  const cb = tagCenters[tagArr[b]];
-                  if (ca && cb) {
-                    linkPositions.push(ca.x, ca.y, ca.z, cb.x, cb.y, cb.z);
-                    const col = new THREE.Color(TAG_COLORS[tagArr[a]] || '#444');
-                    linkColors.push(col.r, col.g, col.b, col.r, col.g, col.b);
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (linkPositions.length > 0) {
-          const linkGeo = new THREE.BufferGeometry();
-          linkGeo.setAttribute('position', new THREE.Float32BufferAttribute(linkPositions, 3));
-          linkGeo.setAttribute('color', new THREE.Float32BufferAttribute(linkColors, 3));
-          const linkMat = new THREE.LineBasicMaterial({
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.04,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          });
-          const linkLines = new THREE.LineSegments(linkGeo, linkMat);
-          galaxyGroup.add(linkLines);
-        }
+        // Multi-tag posts are already positioned between their tag clusters
+        // via the spherical layout — no explicit lines needed.
+        // The particle density between clusters naturally shows cross-pollination.
 
         setLoading(false);
       } catch (err: unknown) {
