@@ -674,9 +674,110 @@ export default function FirefliesXR() {
           galaxyGroup.add(glowSphere);
         }
 
-        // Multi-tag posts are already positioned between their tag clusters
-        // via the spherical layout — no explicit lines needed.
-        // The particle density between clusters naturally shows cross-pollination.
+        // ── Gravitational arcs between tag clusters ────────────────────
+        // Multi-tag posts create curved trajectories between clusters.
+        // Curvature = engagement (views) — high-view posts bend spacetime more.
+        // Each arc is a quadratic bezier sampled into line segments.
+
+        // Count unique multi-tag connections and their total engagement
+        const connectionMap = new Map<string, { count: number; totalViews: number; tags: [string, string] }>();
+        for (const node of nodes) {
+          if (!node.subTags || node.subTags.length <= 1) continue;
+          const parentTags = [...new Set(node.subTags.map((st: string) => st.split(':')[0]))];
+          if (parentTags.length <= 1) continue;
+          for (let a = 0; a < parentTags.length; a++) {
+            for (let b = a + 1; b < parentTags.length; b++) {
+              const key = [parentTags[a], parentTags[b]].sort().join('|');
+              const existing = connectionMap.get(key) || { count: 0, totalViews: 0, tags: [parentTags[a], parentTags[b]] as [string, string] };
+              existing.count++;
+              existing.totalViews += (node.wordCount || 1); // use wordCount as proxy for engagement weight
+              connectionMap.set(key, existing);
+            }
+          }
+        }
+
+        // Only draw connections that appear 3+ times (filter noise)
+        const significantConnections = [...connectionMap.values()].filter(c => c.count >= 3);
+
+        // Build curved arc geometry
+        const arcPositions: number[] = [];
+        const arcColors: number[] = [];
+        const CURVE_SEGMENTS = 16;
+
+        for (const conn of significantConnections) {
+          const ca = tagCenters[conn.tags[0]];
+          const cb = tagCenters[conn.tags[1]];
+          if (!ca || !cb) continue;
+
+          // Gravitational curvature: more connections = deeper curve
+          const curvatureStrength = Math.min(0.6, conn.count / 50);
+
+          // Midpoint + perpendicular offset for the bezier control point
+          const midX = (ca.x + cb.x) / 2;
+          const midY = (ca.y + cb.y) / 2;
+          const midZ = (ca.z + cb.z) / 2;
+
+          // Perpendicular direction (cross product with up vector for variety)
+          const dx = cb.x - ca.x;
+          const dy = cb.y - ca.y;
+          const dz = cb.z - ca.z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+          // Cross with (0,1,0) for perpendicular
+          const px = dy * 0 - dz * 1; // simplified cross product
+          const py = dz * 0 - dx * 0;
+          const pz = dx * 1 - dy * 0;
+          const pLen = Math.sqrt(px * px + py * py + pz * pz) || 1;
+
+          // Control point: midpoint + perpendicular offset scaled by curvature
+          const offset = dist * curvatureStrength;
+          const cpx = midX + (px / pLen) * offset;
+          const cpy = midY + (py / pLen) * offset;
+          const cpz = midZ + (pz / pLen) * offset;
+
+          // Sample the quadratic bezier into line segments
+          const color1 = new THREE.Color(TAG_COLORS[conn.tags[0]] || '#444');
+          const color2 = new THREE.Color(TAG_COLORS[conn.tags[1]] || '#444');
+
+          for (let s = 0; s < CURVE_SEGMENTS; s++) {
+            const t0 = s / CURVE_SEGMENTS;
+            const t1 = (s + 1) / CURVE_SEGMENTS;
+
+            // Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+            const x0 = (1 - t0) * (1 - t0) * ca.x + 2 * (1 - t0) * t0 * cpx + t0 * t0 * cb.x;
+            const y0 = (1 - t0) * (1 - t0) * ca.y + 2 * (1 - t0) * t0 * cpy + t0 * t0 * cb.y;
+            const z0 = (1 - t0) * (1 - t0) * ca.z + 2 * (1 - t0) * t0 * cpz + t0 * t0 * cb.z;
+            const x1 = (1 - t1) * (1 - t1) * ca.x + 2 * (1 - t1) * t1 * cpx + t1 * t1 * cb.x;
+            const y1 = (1 - t1) * (1 - t1) * ca.y + 2 * (1 - t1) * t1 * cpy + t1 * t1 * cb.y;
+            const z1 = (1 - t1) * (1 - t1) * ca.z + 2 * (1 - t1) * t1 * cpz + t1 * t1 * cb.z;
+
+            arcPositions.push(x0, y0, z0, x1, y1, z1);
+
+            // Gradient color from tag A to tag B
+            const cr = color1.r + (color2.r - color1.r) * t0;
+            const cg = color1.g + (color2.g - color1.g) * t0;
+            const cb2 = color1.b + (color2.b - color1.b) * t0;
+            const cr1 = color1.r + (color2.r - color1.r) * t1;
+            const cg1 = color1.g + (color2.g - color1.g) * t1;
+            const cb3 = color1.b + (color2.b - color1.b) * t1;
+            arcColors.push(cr, cg, cb2, cr1, cg1, cb3);
+          }
+        }
+
+        if (arcPositions.length > 0) {
+          const arcGeo = new THREE.BufferGeometry();
+          arcGeo.setAttribute('position', new THREE.Float32BufferAttribute(arcPositions, 3));
+          arcGeo.setAttribute('color', new THREE.Float32BufferAttribute(arcColors, 3));
+          const arcMat = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.06,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const arcLines = new THREE.LineSegments(arcGeo, arcMat);
+          galaxyGroup.add(arcLines);
+        }
 
         setLoading(false);
       } catch (err: unknown) {
