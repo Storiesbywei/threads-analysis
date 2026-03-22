@@ -25,13 +25,15 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "astro": "^5.17.0",
     "@astrojs/node": "^9.0.0",
     "@astrojs/react": "^4.0.0",
+    "@types/three": "^0.183.1",
+    "astro": "^5.17.0",
     "force-graph": "^1.47.0",
     "pg": "^8.13.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
