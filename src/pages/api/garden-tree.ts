@@ -73,6 +73,7 @@ export const GET: APIRoute = async ({ url }) => {
              p.quoted_post_id,
              t.tag AS primary_tag,
              ss.avg_surprise,
+             ARRAY(SELECT st.sub_tag FROM sub_tags st WHERE st.post_id = p.id) AS sub_tags,
              ROW_NUMBER() OVER (ORDER BY p.timestamp ASC) as rn
            FROM posts p
            LEFT JOIN tags t ON t.post_id = p.id AND t.is_primary = true
@@ -89,7 +90,8 @@ export const GET: APIRoute = async ({ url }) => {
            p.reply_to_id,
            p.quoted_post_id,
            t.tag AS primary_tag,
-           ss.avg_surprise
+           ss.avg_surprise,
+           ARRAY(SELECT st.sub_tag FROM sub_tags st WHERE st.post_id = p.id) AS sub_tags
          FROM posts p
          LEFT JOIN tags t ON t.post_id = p.id AND t.is_primary = true
          LEFT JOIN surprise_scores ss ON ss.post_id = p.id
@@ -103,6 +105,7 @@ export const GET: APIRoute = async ({ url }) => {
       timestamp: Number(row.timestamp),
       variety: row.variety || 'original',
       tag: row.primary_tag || 'reaction',
+      subTags: row.sub_tags || [],
       surprise: row.avg_surprise ? parseFloat(row.avg_surprise) : 0,
       wordCount: row.word_count || 0,
       replyToId: row.reply_to_id || null,

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  buildThreadsGarden,
+  buildRadialGarden,
   filterGardenByTimestamp,
 } from '../../lib/threads-lsystem';
 import type {
   GardenNode,
   GardenBranch,
   QuoteEdge,
-  TreeTrunk,
+  TreeCenter,
 } from '../../lib/threads-lsystem';
 import { TAG_COLORS } from '../../lib/colors';
 import GardenTimeline from './GardenTimeline';
@@ -18,6 +18,8 @@ import TagLabels from './TagLabels';
 const BG_COLOR = '#0D0D0E';
 const HOVER_RADIUS = 14;
 const LEAF_RADIUS = 1.8;
+const BLOOM_FRAMES = 15;
+const SPATIAL_CELL_SIZE = 300; // Radial layout is more evenly distributed
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -139,7 +141,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
   // Garden data refs (never stored in state to avoid re-renders)
   const allBranchesRef = useRef<GardenBranch[]>([]);
   const allQuoteEdgesRef = useRef<QuoteEdge[]>([]);
-  const trunksRef = useRef<TreeTrunk[]>([]);
+  const centersRef = useRef<TreeCenter[]>([]);
   const visibleBranchesRef = useRef<GardenBranch[]>([]);
   const visibleQuoteEdgesRef = useRef<QuoteEdge[]>([]);
   const nodeDataRef = useRef<Map<string, GardenNode>>(new Map());
@@ -148,6 +150,8 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
   // Growth animation
   const grownSetRef = useRef(new Set<string>());
   const growProgressRef = useRef(new Map<string, number>());
+  // Bloom animation: tracks scale pulse for depth-3 branches
+  const bloomProgressRef = useRef(new Map<string, number>());
 
   // ─── Data Fetching ───────────────────────────────────────────────────────
 
@@ -174,15 +178,15 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         }
         nodeDataRef.current = nodeMap;
 
-        // Build the L-System garden
-        const garden = buildThreadsGarden(nodes, w * 2, h * 2);
+        // Build the radial canopy garden
+        const garden = buildRadialGarden(nodes, w * 2, h * 2);
 
         allBranchesRef.current = garden.branches;
         allQuoteEdgesRef.current = garden.quoteEdges;
-        trunksRef.current = garden.trunks;
+        centersRef.current = garden.centers;
 
-        // Build spatial index (cell size 200px in world coords)
-        spatialIndexRef.current = buildSpatialIndex(garden.branches, 200);
+        // Build spatial index
+        spatialIndexRef.current = buildSpatialIndex(garden.branches, SPATIAL_CELL_SIZE);
 
         // Tag info for labels
         const tagCounts = new Map<string, number>();
@@ -212,8 +216,8 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         setVisibleCount(0);
 
         // Center the view on the garden
-        const allX = garden.trunks.map(t => t.x);
-        const allY = garden.trunks.map(t => t.y);
+        const allX = garden.centers.map(c => c.cx);
+        const allY = garden.centers.map(c => c.cy);
         if (allX.length > 0) {
           const centerX = (Math.min(...allX) + Math.max(...allX)) / 2;
           const centerY = (Math.min(...allY) + Math.max(...allY)) / 2;
@@ -260,6 +264,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
     if (currentTs < prevTs) {
       grownSetRef.current.clear();
       growProgressRef.current.clear();
+      bloomProgressRef.current.clear();
     }
 
     const filtered = filterGardenByTimestamp(
@@ -269,7 +274,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
     );
     visibleBranchesRef.current = filtered.branches;
     visibleQuoteEdgesRef.current = filtered.quoteEdges;
-    setVisibleCount(filtered.branches.filter(b => b.depth > 0).length);
+    setVisibleCount(filtered.branches.filter(b => b.depth === 3).length);
   }, [currentTs]);
 
   // ─── Canvas Resize ──────────────────────────────────────────────────────
@@ -348,7 +353,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         const step = Math.max(1, Math.floor(branches.length / 5000));
         for (let i = 0; i < branches.length; i += step) {
           const b = branches[i];
-          if (b.depth === 0) continue; // skip trunks
+          if (b.depth < 3) continue; // only hover on post branches
           const dx = b.to.x - mx;
           const dy = b.to.y - my;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -360,17 +365,17 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
 
         // Also check exact neighbors if we have a rough hit
         if (closest) {
-          const cx = Math.floor(mx / 200);
-          const cy = Math.floor(my / 200);
+          const cellX = Math.floor(mx / SPATIAL_CELL_SIZE);
+          const cellY = Math.floor(my / SPATIAL_CELL_SIZE);
           for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
               const cell = spatialIndexRef.current.get(
-                `${cx + dx},${cy + dy}`,
+                `${cellX + dx},${cellY + dy}`,
               );
               if (!cell) continue;
               for (const bi of cell.branches) {
                 const b = allBranchesRef.current[bi];
-                if (b.depth === 0) continue;
+                if (b.depth < 3) continue;
                 if (b.timestamp > currentTsRef.current) continue;
                 const ddx = b.to.x - mx;
                 const ddy = b.to.y - my;
@@ -439,7 +444,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
       const highlight = highlightRef.current;
       const branches = visibleBranchesRef.current;
       const quoteEdges = visibleQuoteEdgesRef.current;
-      const trunks = trunksRef.current;
+      const centers = centersRef.current;
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, w * dpr, h * dpr);
@@ -459,7 +464,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
       );
 
       // ── Spatial culling ──
-      const visibleCells = getVisibleCells(pan.x, pan.y, zoom, w, h, 200);
+      const visibleCells = getVisibleCells(pan.x, pan.y, zoom, w, h, SPATIAL_CELL_SIZE);
 
       // ── Draw quote edges (dashed, behind branches) ──
       if (quoteEdges.length < 2000) {
@@ -468,131 +473,191 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         ctx.lineWidth = 0.5;
         ctx.globalAlpha = 0.08;
         for (const edge of quoteEdges) {
+          // Draw curved arc for cross-pollination
+          const mx = (edge.from.x + edge.to.x) / 2;
+          const my = (edge.from.y + edge.to.y) / 2;
+          const dx = edge.to.x - edge.from.x;
+          const dy = edge.to.y - edge.from.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          // Perpendicular offset for arc
+          const arcOffset = len * 0.15;
+          const cpx = mx + (-dy / (len || 1)) * arcOffset;
+          const cpy = my + (dx / (len || 1)) * arcOffset;
+
           ctx.strokeStyle = 'rgba(255,255,255,0.3)';
           ctx.beginPath();
           ctx.moveTo(edge.from.x, edge.from.y);
-          ctx.lineTo(edge.to.x, edge.to.y);
+          ctx.quadraticCurveTo(cpx, cpy, edge.to.x, edge.to.y);
           ctx.stroke();
         }
         ctx.setLineDash([]);
         ctx.restore();
       }
 
-      // ── Draw trunk labels (tag names at trunk base) ──
+      // ── Draw center seeds (filled circles at tree centers) ──
+      ctx.save();
+      for (const center of centers) {
+        const isHighlighted =
+          highlight === null || highlight === center.tag;
+        ctx.globalAlpha = isHighlighted ? 0.5 : 0.08;
+        ctx.fillStyle = center.color;
+        ctx.beginPath();
+        const seedRadius = Math.max(3, Math.sqrt(center.postCount) * 0.15);
+        ctx.arc(center.cx, center.cy, seedRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // ── Draw center labels at {cx, cy} ──
       if (zoom > 0.3) {
         ctx.save();
-        for (const trunk of trunks) {
+        for (const center of centers) {
           const isHighlighted =
-            highlight === null || highlight === trunk.tag;
+            highlight === null || highlight === center.tag;
           ctx.globalAlpha = isHighlighted ? 0.35 : 0.06;
-          ctx.fillStyle = trunk.color;
+          ctx.fillStyle = center.color;
           ctx.font = `600 ${Math.max(8, 11 / zoom)}px monospace`;
           ctx.textAlign = 'center';
-          ctx.fillText(trunk.tag, trunk.x, trunk.y + 14 / zoom);
+          ctx.fillText(center.tag, center.cx, center.cy + (Math.max(6, Math.sqrt(center.postCount) * 0.15) + 10 / zoom));
         }
         ctx.restore();
       }
 
-      // ── Draw branches ──
+      // ── Draw branches batched by color ──
+      // Group branches by tag for fewer strokeStyle changes
+      const branchesByTag = new Map<string, number[]>();
       for (let i = 0; i < branches.length; i++) {
-        const branch = branches[i];
+        const tag = branches[i].tag;
+        if (!branchesByTag.has(tag)) branchesByTag.set(tag, []);
+        branchesByTag.get(tag)!.push(i);
+      }
 
-        // Spatial cull check
-        const mx = (branch.from.x + branch.to.x) / 2;
-        const my = (branch.from.y + branch.to.y) / 2;
-        const cx = Math.floor(mx / 200);
-        const cy = Math.floor(my / 200);
-        if (!visibleCells.has(`${cx},${cy}`)) continue;
+      for (const [tag, indices] of branchesByTag) {
+        const color = TAG_COLORS[tag] || '#6e7681';
+        ctx.strokeStyle = color;
 
-        const isHighlighted =
-          highlight === null || highlight === branch.tag;
+        for (const i of indices) {
+          const branch = branches[i];
 
-        // Growth animation
-        let progress = grownSetRef.current.has(branch.nodeId) ? 1 : 0;
-        if (!grownSetRef.current.has(branch.nodeId)) {
-          const current =
-            growProgressRef.current.get(branch.nodeId) || 0;
-          const next = Math.min(1, current + 0.06);
-          growProgressRef.current.set(branch.nodeId, next);
-          progress = next;
-          if (next >= 1) {
-            grownSetRef.current.add(branch.nodeId);
-            growProgressRef.current.delete(branch.nodeId);
+          // Spatial cull check
+          const mx = (branch.from.x + branch.to.x) / 2;
+          const my = (branch.from.y + branch.to.y) / 2;
+          const cellX = Math.floor(mx / SPATIAL_CELL_SIZE);
+          const cellY = Math.floor(my / SPATIAL_CELL_SIZE);
+          if (!visibleCells.has(`${cellX},${cellY}`)) continue;
+
+          const isHighlighted =
+            highlight === null || highlight === branch.tag;
+
+          // Growth animation
+          let progress = grownSetRef.current.has(branch.nodeId) ? 1 : 0;
+          if (!grownSetRef.current.has(branch.nodeId)) {
+            const current =
+              growProgressRef.current.get(branch.nodeId) || 0;
+            const next = Math.min(1, current + 0.06);
+            growProgressRef.current.set(branch.nodeId, next);
+            progress = next;
+            if (next >= 1) {
+              grownSetRef.current.add(branch.nodeId);
+              growProgressRef.current.delete(branch.nodeId);
+
+              // Start bloom animation for depth-3 branches
+              if (branch.depth === 3) {
+                bloomProgressRef.current.set(branch.nodeId, 0);
+              }
+            }
           }
-        }
-        if (progress <= 0) continue;
+          if (progress <= 0) continue;
 
-        const opacity = isHighlighted
-          ? branch.opacity
-          : branch.opacity * 0.05;
+          // Bloom scale for depth-3 branches (0 -> 1.2 -> 1.0 over BLOOM_FRAMES)
+          let bloomScale = 1;
+          if (branch.depth === 3 && bloomProgressRef.current.has(branch.nodeId)) {
+            const bloomFrame = bloomProgressRef.current.get(branch.nodeId)!;
+            const nextBloom = bloomFrame + 1;
+            if (nextBloom >= BLOOM_FRAMES) {
+              bloomProgressRef.current.delete(branch.nodeId);
+              bloomScale = 1;
+            } else {
+              bloomProgressRef.current.set(branch.nodeId, nextBloom);
+              // Scale: 0 -> 1.2 at frame 8, -> 1.0 at frame 15
+              const t = nextBloom / BLOOM_FRAMES;
+              if (t < 0.53) {
+                bloomScale = t / 0.53 * 1.2;
+              } else {
+                bloomScale = 1.2 - (t - 0.53) / 0.47 * 0.2;
+              }
+            }
+          }
 
-        ctx.save();
-        ctx.globalAlpha = opacity * progress;
-        ctx.strokeStyle = branch.color;
+          const opacity = isHighlighted
+            ? branch.opacity
+            : branch.opacity * 0.05;
 
-        // Trunk lines are thicker
-        const lineWidth =
-          branch.depth === 0
-            ? Math.max(1.5, 3 - zoom * 0.5)
-            : Math.max(0.3, 1.2);
-        ctx.lineWidth = lineWidth;
-        ctx.lineCap = 'round';
+          ctx.save();
+          ctx.globalAlpha = opacity * progress;
+          ctx.strokeStyle = color;
 
-        // Draw quadratic bezier
-        ctx.beginPath();
-        ctx.moveTo(branch.from.x, branch.from.y);
+          // Use pre-computed lineWidth, with depth-specific adjustments
+          const lineWidth = branch.lineWidth * bloomScale;
+          ctx.lineWidth = lineWidth;
+          ctx.lineCap = 'round';
 
-        if (progress < 1) {
-          const t = progress;
-          const ix1 =
-            branch.from.x + (branch.control.x - branch.from.x) * t;
-          const iy1 =
-            branch.from.y + (branch.control.y - branch.from.y) * t;
-          const ix2 =
-            branch.control.x + (branch.to.x - branch.control.x) * t;
-          const iy2 =
-            branch.control.y + (branch.to.y - branch.control.y) * t;
-          const endX = ix1 + (ix2 - ix1) * t;
-          const endY = iy1 + (iy2 - iy1) * t;
-          ctx.quadraticCurveTo(ix1, iy1, endX, endY);
-        } else {
-          ctx.quadraticCurveTo(
-            branch.control.x,
-            branch.control.y,
-            branch.to.x,
-            branch.to.y,
-          );
-        }
-        ctx.stroke();
-
-        // ── Surprise glow ──
-        if (
-          branch.surprise > 5 &&
-          isHighlighted &&
-          progress >= 1 &&
-          branch.depth > 0
-        ) {
-          const glowIntensity = Math.min(
-            1,
-            (branch.surprise - 5) / 5,
-          );
-          ctx.globalAlpha = glowIntensity * 0.2;
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = branch.color;
-          ctx.filter = 'blur(3px)';
+          // Draw quadratic bezier
           ctx.beginPath();
           ctx.moveTo(branch.from.x, branch.from.y);
-          ctx.quadraticCurveTo(
-            branch.control.x,
-            branch.control.y,
-            branch.to.x,
-            branch.to.y,
-          );
-          ctx.stroke();
-          ctx.filter = 'none';
-        }
 
-        ctx.restore();
+          if (progress < 1) {
+            const t = progress;
+            const ix1 =
+              branch.from.x + (branch.control.x - branch.from.x) * t;
+            const iy1 =
+              branch.from.y + (branch.control.y - branch.from.y) * t;
+            const ix2 =
+              branch.control.x + (branch.to.x - branch.control.x) * t;
+            const iy2 =
+              branch.control.y + (branch.to.y - branch.control.y) * t;
+            const endX = ix1 + (ix2 - ix1) * t;
+            const endY = iy1 + (iy2 - iy1) * t;
+            ctx.quadraticCurveTo(ix1, iy1, endX, endY);
+          } else {
+            ctx.quadraticCurveTo(
+              branch.control.x,
+              branch.control.y,
+              branch.to.x,
+              branch.to.y,
+            );
+          }
+          ctx.stroke();
+
+          // ── Surprise glow (radial glow for high surprise) ──
+          if (
+            branch.surprise > 12 &&
+            isHighlighted &&
+            progress >= 1 &&
+            branch.depth === 3
+          ) {
+            const glowIntensity = Math.min(
+              1,
+              (branch.surprise - 12) / 2,
+            );
+            ctx.globalAlpha = glowIntensity * 0.2;
+            ctx.lineWidth = branch.lineWidth * 3;
+            ctx.strokeStyle = color;
+            ctx.filter = 'blur(3px)';
+            ctx.beginPath();
+            ctx.moveTo(branch.from.x, branch.from.y);
+            ctx.quadraticCurveTo(
+              branch.control.x,
+              branch.control.y,
+              branch.to.x,
+              branch.to.y,
+            );
+            ctx.stroke();
+            ctx.filter = 'none';
+          }
+
+          ctx.restore();
+        }
       }
 
       // ── Draw leaf tips on branch endpoints ──
@@ -600,7 +665,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         ctx.save();
         for (let i = 0; i < branches.length; i++) {
           const branch = branches[i];
-          if (branch.depth === 0) continue;
+          if (branch.depth < 3) continue;
           if (!grownSetRef.current.has(branch.nodeId)) continue;
 
           const isHighlighted =
@@ -608,9 +673,9 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
           if (!isHighlighted) continue;
 
           // Spatial cull
-          const cx = Math.floor(branch.to.x / 200);
-          const cy = Math.floor(branch.to.y / 200);
-          if (!visibleCells.has(`${cx},${cy}`)) continue;
+          const cellX = Math.floor(branch.to.x / SPATIAL_CELL_SIZE);
+          const cellY = Math.floor(branch.to.y / SPATIAL_CELL_SIZE);
+          if (!visibleCells.has(`${cellX},${cellY}`)) continue;
 
           ctx.globalAlpha = 0.6;
           ctx.beginPath();
@@ -621,14 +686,14 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
             0,
             Math.PI * 2,
           );
-          ctx.fillStyle = branch.color;
+          ctx.fillStyle = TAG_COLORS[branch.tag] || '#6e7681';
           ctx.fill();
 
           // High-surprise glow dot
-          if (branch.surprise > 6) {
+          if (branch.surprise > 12) {
             const glowIntensity = Math.min(
               1,
-              (branch.surprise - 6) / 4,
+              (branch.surprise - 12) / 2,
             );
             ctx.globalAlpha = glowIntensity * 0.35;
             ctx.beginPath();
@@ -639,7 +704,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
               0,
               Math.PI * 2,
             );
-            ctx.fillStyle = branch.color;
+            ctx.fillStyle = TAG_COLORS[branch.tag] || '#6e7681';
             ctx.filter = 'blur(2px)';
             ctx.fill();
             ctx.filter = 'none';
@@ -653,16 +718,16 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
         ctx.save();
         for (let i = 0; i < branches.length; i += 7) {
           const branch = branches[i];
-          if (branch.depth === 0) continue;
+          if (branch.depth < 3) continue;
 
           const isHighlighted =
             highlight === null || highlight === branch.tag;
           if (!isHighlighted) continue;
           if (!grownSetRef.current.has(branch.nodeId)) continue;
 
-          const cx = Math.floor(branch.to.x / 200);
-          const cy = Math.floor(branch.to.y / 200);
-          if (!visibleCells.has(`${cx},${cy}`)) continue;
+          const cellX = Math.floor(branch.to.x / SPATIAL_CELL_SIZE);
+          const cellY = Math.floor(branch.to.y / SPATIAL_CELL_SIZE);
+          if (!visibleCells.has(`${cellX},${cellY}`)) continue;
 
           const seed =
             (branch.nodeId.charCodeAt(0) || 0) * 31 +
@@ -676,7 +741,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
             ctx.globalAlpha = 0.08;
             ctx.beginPath();
             ctx.arc(px, py, 0.6, 0, Math.PI * 2);
-            ctx.fillStyle = branch.color;
+            ctx.fillStyle = TAG_COLORS[branch.tag] || '#6e7681';
             ctx.fill();
           }
         }
@@ -698,6 +763,7 @@ export default function ThreadsGarden({ tags, title, maxNodes = 2000 }: ThreadsG
     if (currentTs < prevTsRef.current) {
       grownSetRef.current.clear();
       growProgressRef.current.clear();
+      bloomProgressRef.current.clear();
     }
     prevTsRef.current = currentTs;
   }, [currentTs]);
