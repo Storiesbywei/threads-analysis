@@ -340,18 +340,8 @@ export default function FirefliesXR() {
 
     // ── Hand Model Rendering ──────────────────────────────────────────
     // On Vision Pro, users cannot see their hands unless we render them.
-    const handModelFactory = new XRHandModelFactory();
-
-    const hand0 = renderer.xr.getHand(0);
-    const hand1 = renderer.xr.getHand(1);
-
-    const handModel0 = handModelFactory.createHandModel(hand0, 'mesh');
-    hand0.add(handModel0);
-    scene.add(hand0);
-
-    const handModel1 = handModelFactory.createHandModel(hand1, 'mesh');
-    hand1.add(handModel1);
-    scene.add(hand1);
+    // Vision Pro composites real hands at system level — no need for Three.js hand models
+    // (Three.js mesh hands appear black and at wrong scale on visionOS)
 
     // ── XR Raycaster ──────────────────────────────────────────────────
 
@@ -634,9 +624,25 @@ export default function FirefliesXR() {
 
     // ── Register controller events ────────────────────────────────────
 
+    // Listen on ALL controllers — Vision Pro with hand tracking fires on indices 0-3
     controller0.addEventListener('selectstart', onSelectStart);
     controller0.addEventListener('select', onSelect);
     controller0.addEventListener('selectend', onSelectEnd);
+    controller1.addEventListener('selectstart', onSelectStart);
+    controller1.addEventListener('select', onSelect);
+    controller1.addEventListener('selectend', onSelectEnd);
+
+    // Also listen on controllers 2-3 (transient-pointer on Vision Pro)
+    const controller2 = renderer.xr.getController(2);
+    const controller3 = renderer.xr.getController(3);
+    scene.add(controller2);
+    scene.add(controller3);
+    controller2.addEventListener('selectstart', onSelectStart);
+    controller2.addEventListener('select', onSelect);
+    controller2.addEventListener('selectend', onSelectEnd);
+    controller3.addEventListener('selectstart', onSelectStart);
+    controller3.addEventListener('select', onSelect);
+    controller3.addEventListener('selectend', onSelectEnd);
     controller1.addEventListener('selectstart', onSelectStart);
     controller1.addEventListener('select', onSelect);
     controller1.addEventListener('selectend', onSelectEnd);
