@@ -37,7 +37,7 @@ interface TagInfo {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const BG = 0x020208;
-const FOG_DENSITY = 0.0015;
+const FOG_DENSITY = 0.0008;
 const MOVE_SPEED_BASE = 2.0;
 const MOUSE_SENSITIVITY = 0.002;
 const DRIFT_AMPLITUDE = 0.5;
@@ -45,13 +45,45 @@ const DRIFT_SPEED = 0.5;
 const BLINK_AMPLITUDE = 0.1;
 const BLINK_SPEED = 0.7;
 
-// Tag ordering for Z-axis placement
+// Galaxy layout constants
+const SPHERE_RADIUS = 300;        // tag centers distributed on this sphere
+const BASE_NEBULA = 80;           // base nebula size (scaled by post count)
+const ORBIT_RADIUS_INIT = 600;    // initial camera distance
+const ORBIT_SENSITIVITY = 0.003;
+const ORBIT_AUTO_ROTATE = 0.0003; // radians per frame for ambient spin
+const ORBIT_ZOOM_SPEED = 30;      // scroll wheel zoom increment
+const ORBIT_RADIUS_MIN = 100;
+const ORBIT_RADIUS_MAX = 1500;
+const PHI_GOLDEN = (1 + Math.sqrt(5)) / 2;
+
+// Tag ordering for legend / nebula placement
 const TAG_ORDER = [
   'reaction', 'one-liner', 'question', 'shitpost', 'meta-social',
   'philosophy', 'tech', 'political', 'race', 'sex-gender',
   'commentary', 'personal', 'daily-life', 'food', 'work',
   'creative', 'language', 'media', 'finance', 'url-share',
 ];
+
+// ─── Seeded PRNG ─────────────────────────────────────────────────────────────
+
+/** Simple seeded PRNG (mulberry32) — deterministic positions per post ID */
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 // ─── Shaders ─────────────────────────────────────────────────────────────────
 
@@ -125,8 +157,8 @@ export default function FirefliesView() {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 2000);
-    camera.position.set(0, 0, 200);
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 3000);
+    camera.position.set(0, 0, ORBIT_RADIUS_INIT);
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     renderer.setSize(width, height);
@@ -141,6 +173,14 @@ export default function FirefliesView() {
     let pitch = 0;
     let isPointerLocked = false;
 
+    // Orbit camera state (default mode)
+    let orbitRadius = ORBIT_RADIUS_INIT;
+    let orbitAzimuth = 0;
+    let orbitElevation = 0.3;
+    let isOrbiting = false;   // mouse is dragged in orbit mode
+    let orbitStartX = 0;
+    let orbitStartY = 0;
+
     // Raycaster for hover detection
     const raycaster = new THREE.Raycaster();
     raycaster.params.Points = { threshold: 5 };
@@ -154,7 +194,7 @@ export default function FirefliesView() {
     let points: THREE.Points | null = null;
     let geometry: THREE.BufferGeometry | null = null;
     let phases: Float32Array | null = null;
-    let basePositionsY: Float32Array | null = null;
+    let basePositions: Float32Array | null = null;
     let baseAlphas: Float32Array | null = null;
     let nodeCount = 0;
 
@@ -162,7 +202,6 @@ export default function FirefliesView() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       keys[e.code] = true;
-      // Prevent default for game keys
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
         e.preventDefault();
       }
@@ -172,14 +211,37 @@ export default function FirefliesView() {
       keys[e.code] = false;
     };
 
+    const onMouseDown = (e: MouseEvent) => {
+      if (!isPointerLocked && e.button === 0) {
+        isOrbiting = true;
+        orbitStartX = e.clientX;
+        orbitStartY = e.clientY;
+      }
+    };
+
+    const onMouseUp = () => {
+      isOrbiting = false;
+    };
+
     const onMouseMove = (e: MouseEvent) => {
       if (isPointerLocked) {
+        // Fly mode: free-look
         yaw -= e.movementX * MOUSE_SENSITIVITY;
         pitch -= e.movementY * MOUSE_SENSITIVITY;
         pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+      } else if (isOrbiting) {
+        // Orbit mode: drag to rotate around origin
+        const dx = e.clientX - orbitStartX;
+        const dy = e.clientY - orbitStartY;
+        orbitAzimuth += dx * ORBIT_SENSITIVITY;
+        orbitElevation += dy * ORBIT_SENSITIVITY;
+        // Clamp elevation to avoid gimbal lock
+        orbitElevation = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, orbitElevation));
+        orbitStartX = e.clientX;
+        orbitStartY = e.clientY;
       }
 
-      // Update mouse for raycasting (even when not locked)
+      // Update mouse for raycasting (always)
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -187,25 +249,41 @@ export default function FirefliesView() {
 
     const onPointerLockChange = () => {
       isPointerLocked = document.pointerLockElement === renderer.domElement;
+      if (!isPointerLocked) {
+        // Returning to orbit mode — sync orbit angles from camera position
+        const pos = camera.position;
+        orbitRadius = pos.length();
+        orbitElevation = Math.asin(Math.max(-1, Math.min(1, pos.y / orbitRadius)));
+        orbitAzimuth = Math.atan2(pos.x, pos.z);
+      }
     };
 
-    // Double-click to enter fly mode, single-click to select post
     const onCanvasClick = () => {
       // Single click: don't lock pointer — let raycaster handle post selection
     };
 
     const onCanvasDblClick = () => {
       if (!isPointerLocked) {
+        // Sync fly mode angles from current orbit position
+        yaw = orbitAzimuth + Math.PI; // facing center
+        pitch = -orbitElevation;
         renderer.domElement.requestPointerLock();
       }
     };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (e.deltaY > 0) {
-        moveSpeed = Math.max(0.3, moveSpeed * 0.9);
+      if (isPointerLocked) {
+        // In fly mode: adjust speed
+        if (e.deltaY > 0) {
+          moveSpeed = Math.max(0.3, moveSpeed * 0.9);
+        } else {
+          moveSpeed = Math.min(20, moveSpeed * 1.1);
+        }
       } else {
-        moveSpeed = Math.min(20, moveSpeed * 1.1);
+        // In orbit mode: zoom in/out
+        orbitRadius += e.deltaY > 0 ? ORBIT_ZOOM_SPEED : -ORBIT_ZOOM_SPEED;
+        orbitRadius = Math.max(ORBIT_RADIUS_MIN, Math.min(ORBIT_RADIUS_MAX, orbitRadius));
       }
     };
 
@@ -227,6 +305,8 @@ export default function FirefliesView() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     renderer.domElement.addEventListener('click', onCanvasClick);
     renderer.domElement.addEventListener('dblclick', onCanvasDblClick);
@@ -238,7 +318,6 @@ export default function FirefliesView() {
 
     async function loadData() {
       try {
-        // Fetch ALL posts (no limit)
         const res = await fetch('/api/garden-tree');
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
@@ -275,51 +354,94 @@ export default function FirefliesView() {
         setTagInfos(infos);
         setPostCount(nodeCount);
 
-        // ── Build particle arrays ──────────────────────────────────────
+        // Find max tag count for nebula scaling
+        let maxTagCount = 0;
+        for (const [, count] of tagCounts) {
+          if (count > maxTagCount) maxTagCount = count;
+        }
+
+        // ── Compute tag centers on a Fibonacci sphere ──────────────────
+
+        const tagCount = TAG_ORDER.length;
+        const tagCenters: Record<string, { x: number; y: number; z: number }> = {};
+
+        for (let i = 0; i < tagCount; i++) {
+          const theta = (2 * Math.PI * i) / PHI_GOLDEN;
+          const phi = Math.acos(1 - 2 * (i + 0.5) / tagCount);
+          const x = SPHERE_RADIUS * Math.sin(phi) * Math.cos(theta);
+          const y = SPHERE_RADIUS * Math.sin(phi) * Math.sin(theta);
+          const z = SPHERE_RADIUS * Math.cos(phi);
+          tagCenters[TAG_ORDER[i]] = { x, y, z };
+        }
+
+        // ── Build particle arrays (spherical galaxy clusters) ────────
 
         const positions = new Float32Array(nodeCount * 3);
         const colors = new Float32Array(nodeCount * 3);
         const sizes = new Float32Array(nodeCount);
         const alphas = new Float32Array(nodeCount);
         phases = new Float32Array(nodeCount);
-        basePositionsY = new Float32Array(nodeCount);
+        basePositions = new Float32Array(nodeCount * 3);
         baseAlphas = new Float32Array(nodeCount);
 
         for (let i = 0; i < nodeCount; i++) {
           const node = nodes[i];
 
-          // X = time (-500 to +500)
+          // Seeded random for deterministic layout
+          const seed = hashString(node.id);
+          const rng = mulberry32(seed);
+
+          // Find tag center
+          const tag = node.tag || 'reaction';
+          const center = tagCenters[tag] || { x: 0, y: 0, z: 0 };
+
+          // Nebula radius scales with sqrt of tag's post count
+          const thisTagCount = tagCounts.get(tag) || 1;
+          const nebulaRadius = BASE_NEBULA * Math.sqrt(thisTagCount / maxTagCount);
+
+          // Time fraction drives angular position (spiral within nebula)
           const timeFrac = (node.timestamp - minTs) / tsRange;
-          positions[i * 3] = (timeFrac - 0.5) * 1000;
+          const timeAngle = timeFrac * 4 * Math.PI; // wraps around twice
 
-          // Y = surprise (-100 to +100) with jitter
+          // Spherical random position within the nebula (cube root for uniform volume)
+          const r = nebulaRadius * Math.cbrt(rng());
+          const theta = timeAngle + rng() * 0.8; // time-based angle with small jitter
+          const phi = Math.acos(2 * rng() - 1);
+
+          // Surprise pushes posts outward from nebula center
           const surprise = node.surprise || 0;
-          const yBase = ((surprise - 5) / 13 - 0.5) * 200 + (Math.random() - 0.5) * 20;
-          positions[i * 3 + 1] = yBase;
-          basePositionsY[i] = yBase;
+          const surpriseOffset = ((surprise - 8) / 10) * nebulaRadius * 0.5;
 
-          // Z = tag cluster with jitter
-          const tagIndex = TAG_ORDER.indexOf(node.tag);
-          const tagZ = tagIndex >= 0 ? tagIndex : Math.floor(Math.random() * 20);
-          positions[i * 3 + 2] = (tagZ / 20 - 0.5) * 400 + (Math.random() - 0.5) * 30;
+          const px = center.x + (r + surpriseOffset) * Math.sin(phi) * Math.cos(theta);
+          const py = center.y + (r + surpriseOffset) * Math.sin(phi) * Math.sin(theta);
+          const pz = center.z + (r + surpriseOffset) * Math.cos(phi);
+
+          positions[i * 3]     = px;
+          positions[i * 3 + 1] = py;
+          positions[i * 3 + 2] = pz;
+          basePositions[i * 3]     = px;
+          basePositions[i * 3 + 1] = py;
+          basePositions[i * 3 + 2] = pz;
 
           // Color from tag
           const hexColor = TAG_COLORS[node.tag] || '#8b949e';
           const color = new THREE.Color(hexColor);
-          colors[i * 3] = color.r;
+          colors[i * 3]     = color.r;
           colors[i * 3 + 1] = color.g;
           colors[i * 3 + 2] = color.b;
 
-          // Size from word count
-          sizes[i] = 4 + Math.sqrt(node.wordCount || 1) * 1.2;
+          // Size: base + word count contribution + high-surprise bonus
+          let sz = 3 + Math.sqrt(node.wordCount || 1) * 0.5;
+          if (surprise > 11) sz += 2; // high-surprise bonus
+          sizes[i] = sz;
 
           // Alpha/brightness from surprise
           const alphaVal = 0.6 + Math.max(0, (surprise - 5) / 13) * 0.4;
           alphas[i] = Math.min(1, alphaVal);
           baseAlphas[i] = alphas[i];
 
-          // Random phase for animation
-          phases[i] = Math.random() * Math.PI * 2;
+          // Random phase for animation (seeded)
+          phases[i] = rng() * Math.PI * 2;
         }
 
         // ── Create geometry ────────────────────────────────────────────
@@ -365,9 +487,9 @@ export default function FirefliesView() {
       requestAnimationFrame(animate);
 
       const now = performance.now();
-      const delta = (now - lastTime) / 1000; // seconds
+      const delta = (now - lastTime) / 1000;
       lastTime = now;
-      const time = now * 0.001; // seconds since epoch
+      const time = now * 0.001;
 
       // ── FPS counter ──────────────────────────────────────────────────
 
@@ -378,45 +500,63 @@ export default function FirefliesView() {
         lastFpsTime = now;
       }
 
-      // ── Camera movement (WASD + Space/Shift) ─────────────────────────
+      // ── Camera: orbit mode vs fly mode ─────────────────────────────
 
-      // Build direction from yaw/pitch
-      const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+      if (isPointerLocked) {
+        // Fly mode: WASD + free-look
+        const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+        camera.quaternion.setFromEuler(euler);
 
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-      const up = new THREE.Vector3(0, 1, 0);
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const up = new THREE.Vector3(0, 1, 0);
 
-      const speed = moveSpeed * delta * 60; // normalize to ~60fps
+        const speed = moveSpeed * delta * 60;
 
-      if (keys['KeyW']) camera.position.addScaledVector(forward, speed);
-      if (keys['KeyS']) camera.position.addScaledVector(forward, -speed);
-      if (keys['KeyA']) camera.position.addScaledVector(right, -speed);
-      if (keys['KeyD']) camera.position.addScaledVector(right, speed);
-      if (keys['Space']) camera.position.addScaledVector(up, speed);
-      if (keys['ShiftLeft'] || keys['ShiftRight']) camera.position.addScaledVector(up, -speed);
+        if (keys['KeyW']) camera.position.addScaledVector(forward, speed);
+        if (keys['KeyS']) camera.position.addScaledVector(forward, -speed);
+        if (keys['KeyA']) camera.position.addScaledVector(right, -speed);
+        if (keys['KeyD']) camera.position.addScaledVector(right, speed);
+        if (keys['Space']) camera.position.addScaledVector(up, speed);
+        if (keys['ShiftLeft'] || keys['ShiftRight']) camera.position.addScaledVector(up, -speed);
 
-      // ── Clamp camera to universe bounds ──
-      const BOUND = 600;
-      camera.position.x = Math.max(-BOUND, Math.min(BOUND, camera.position.x));
-      camera.position.y = Math.max(-BOUND, Math.min(BOUND, camera.position.y));
-      camera.position.z = Math.max(-BOUND, Math.min(BOUND, camera.position.z));
+        // Clamp camera to universe bounds
+        const BOUND = 800;
+        camera.position.x = Math.max(-BOUND, Math.min(BOUND, camera.position.x));
+        camera.position.y = Math.max(-BOUND, Math.min(BOUND, camera.position.y));
+        camera.position.z = Math.max(-BOUND, Math.min(BOUND, camera.position.z));
+      } else {
+        // Orbit mode: camera revolves around origin
+        // Auto-rotate when not dragging
+        if (!isOrbiting) {
+          orbitAzimuth += ORBIT_AUTO_ROTATE;
+        }
+
+        camera.position.x = orbitRadius * Math.cos(orbitElevation) * Math.sin(orbitAzimuth);
+        camera.position.y = orbitRadius * Math.sin(orbitElevation);
+        camera.position.z = orbitRadius * Math.cos(orbitElevation) * Math.cos(orbitAzimuth);
+        camera.lookAt(0, 0, 0);
+      }
 
       // ── Animate particles ────────────────────────────────────────────
 
-      if (geometry && phases && basePositionsY && baseAlphas) {
+      if (geometry && phases && basePositions && baseAlphas) {
         const posArray = geometry.attributes.position.array as Float32Array;
         const alphaArray = geometry.attributes.alpha.array as Float32Array;
 
         for (let i = 0; i < nodeCount; i++) {
-          // Gentle Y drift (sine wave)
-          posArray[i * 3 + 1] = basePositionsY[i] +
-            Math.sin(time * DRIFT_SPEED + phases[i]) * DRIFT_AMPLITUDE;
+          // Gentle drift on all three axes (spherical layout needs 3D drift)
+          const phase = phases[i];
+          posArray[i * 3]     = basePositions[i * 3]     +
+            Math.sin(time * DRIFT_SPEED + phase) * DRIFT_AMPLITUDE;
+          posArray[i * 3 + 1] = basePositions[i * 3 + 1] +
+            Math.sin(time * DRIFT_SPEED * 0.7 + phase * 1.3) * DRIFT_AMPLITUDE;
+          posArray[i * 3 + 2] = basePositions[i * 3 + 2] +
+            Math.cos(time * DRIFT_SPEED * 0.9 + phase * 0.8) * DRIFT_AMPLITUDE;
 
           // Brightness pulse (firefly blinking)
           alphaArray[i] = baseAlphas[i] +
-            Math.sin(time * BLINK_SPEED + phases[i] * 3) * BLINK_AMPLITUDE;
+            Math.sin(time * BLINK_SPEED + phase * 3) * BLINK_AMPLITUDE;
         }
 
         geometry.attributes.position.needsUpdate = true;
@@ -466,8 +606,11 @@ export default function FirefliesView() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('pointerlockchange', onPointerLockChange);
       renderer.domElement.removeEventListener('click', onCanvasClick);
+      renderer.domElement.removeEventListener('dblclick', onCanvasDblClick);
       renderer.domElement.removeEventListener('wheel', onWheel);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('keydown', onKeyDownEscape);
@@ -586,9 +729,11 @@ export default function FirefliesView() {
               lineHeight: '1.6',
             }}
           >
-            <span style={{ color: 'rgba(255,255,255,0.35)' }}>DBL-CLICK</span> fly mode
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>DRAG</span> orbit
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
-            <span style={{ color: 'rgba(255,255,255,0.35)' }}>CLICK</span> select post
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>SCROLL</span> zoom
+            <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>DBL-CLICK</span> fly mode
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>WASD</span> fly
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
@@ -596,10 +741,7 @@ export default function FirefliesView() {
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>SHIFT</span> down
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
-            <span style={{ color: 'rgba(255,255,255,0.35)' }}>SCROLL</span>{' '}
-            speed
-            <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
-            <span style={{ color: 'rgba(255,255,255,0.35)' }}>ESC</span> unlock
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>ESC</span> orbit mode
           </div>
         </div>
       )}
