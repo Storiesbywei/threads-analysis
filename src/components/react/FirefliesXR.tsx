@@ -1185,26 +1185,31 @@ export default function FirefliesXR() {
         }
       }
 
-      // ── XR: Continuous gaze flight (pinch + hold = fly forward) ─────
-
+      // ── XR: Gaze flight (pinch + hold = fly) ──────────────────────
+      // Count how many hands are pinching on empty space
       if (inXR) {
-        // Check if any pinch is held on empty space (no post hit)
-        let isHoldingEmpty = false;
+        let emptyPinchCount = 0;
         for (const [, state] of pinchStates) {
           if (state.active && state.hitIdx < 0 && state.isGrabbing) {
             const elapsed = now - state.startTime;
             if (elapsed > TAP_THRESHOLD_MS) {
-              isHoldingEmpty = true;
+              emptyPinchCount++;
             }
           }
         }
 
-        if (isHoldingEmpty) {
-          // Fly forward continuously in gaze direction while pinching
+        if (emptyPinchCount > 0) {
           const gazeDir = new THREE.Vector3(0, 0, -1);
           camera.getWorldDirection(gazeDir);
-          const FLY_SPEED = 0.015; // meters per frame
-          cameraRig.position.addScaledVector(gazeDir, FLY_SPEED);
+          const FLY_SPEED = 0.015;
+
+          if (emptyPinchCount === 1) {
+            // One hand pinching = fly FORWARD
+            cameraRig.position.addScaledVector(gazeDir, FLY_SPEED);
+          } else if (emptyPinchCount >= 2) {
+            // Both hands pinching = fly BACKWARD
+            cameraRig.position.addScaledVector(gazeDir, -FLY_SPEED);
+          }
         }
       }
 
