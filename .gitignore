@@ -1,7 +1,13 @@
 node_modules/
 .env
-data/threads/posts.json
-data/raw/
+.env.local
+.env.*.local
+api/__pycache__/
+__pycache__/
+data/
+public/data/post-tags.json
+public/data/knowledge-graph.json
+public/data/fireflies.json
 .DS_Store
 *.log
 

@@ -40,7 +40,7 @@ async function main() {
 
   const needsMetrics = posts.filter(p =>
     !p.metrics || Object.keys(p.metrics).length === 0 ||
-    (p.metrics.views === undefined && p.metrics.likes === undefined)
+    (p.metrics.views === undefined && p.metrics.likes === undefined && !p.metrics._backfill_attempted)
   );
   console.log(`Posts without metrics: ${needsMetrics.length}`);
   console.log(`Posts with metrics: ${posts.length - needsMetrics.length}`);

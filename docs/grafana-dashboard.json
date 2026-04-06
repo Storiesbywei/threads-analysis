@@ -1,0 +1,571 @@
+{
+    "meta": {
+        "type": "db",
+        "canSave": true,
+        "canEdit": true,
+        "canAdmin": true,
+        "canStar": true,
+        "canDelete": true,
+        "slug": "threads-analysis",
+        "url": "/d/threads-analysis/threads-analysis",
+        "expires": "0001-01-01T00:00:00Z",
+        "created": "2026-04-05T05:26:46Z",
+        "updated": "2026-04-05T05:26:46Z",
+        "updatedBy": "Anonymous",
+        "createdBy": "Anonymous",
+        "version": 1,
+        "hasAcl": false,
+        "isFolder": false,
+        "apiVersion": "v0alpha1",
+        "folderId": 0,
+        "folderUid": "",
+        "folderTitle": "General",
+        "folderUrl": "",
+        "provisioned": false,
+        "provisionedExternalId": "",
+        "annotationsPermissions": {
+            "dashboard": {
+                "canAdd": true,
+                "canEdit": true,
+                "canDelete": true
+            },
+            "organization": {
+                "canAdd": true,
+                "canEdit": true,
+                "canDelete": true
+            }
+        }
+    },
+    "dashboard": {
+        "id": 531778596737024,
+        "panels": [
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "blue",
+                            "mode": "fixed"
+                        },
+                        "custom": {
+                            "drawStyle": "bars",
+                            "fillOpacity": 20,
+                            "lineWidth": 2
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 0
+                },
+                "id": 1,
+                "targets": [
+                    {
+                        "format": "time_series",
+                        "rawSql": "SELECT date_trunc('day', \"timestamp\") AS time, COUNT(*) AS posts FROM posts WHERE $__timeFilter(\"timestamp\") GROUP BY 1 ORDER BY 1",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Post Volume Over Time",
+                "type": "timeseries"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 6,
+                    "x": 12,
+                    "y": 0
+                },
+                "id": 2,
+                "options": {
+                    "legend": {
+                        "displayMode": "table",
+                        "placement": "right"
+                    },
+                    "pieType": "donut"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT variety AS metric, COUNT(*) AS value FROM posts GROUP BY variety ORDER BY value DESC",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Posts by Type",
+                "type": "piechart"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "palette-classic"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 6,
+                    "x": 18,
+                    "y": 0
+                },
+                "id": 3,
+                "options": {
+                    "xTickLabelRotation": -45
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT tag, COUNT(*) AS count FROM tags GROUP BY tag ORDER BY count DESC LIMIT 15",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Top Tags",
+                "type": "barchart"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "green",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 0,
+                    "y": 8
+                },
+                "id": 4,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT SUM(views) AS \"Total Views\" FROM metrics_latest",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Total Views",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "orange",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 4,
+                    "y": 8
+                },
+                "id": 5,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT SUM(likes) AS \"Total Likes\" FROM metrics_latest",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Total Likes",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "purple",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 8,
+                    "y": 8
+                },
+                "id": 6,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT SUM(replies) AS \"Total Replies\" FROM metrics_latest",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Total Replies",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "blue",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 0,
+                    "y": 12
+                },
+                "id": 7,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT COUNT(*) AS \"Total Posts\" FROM posts",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Total Posts",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "semi-dark-green",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 4,
+                    "y": 12
+                },
+                "id": 8,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT ROUND(AVG(views)) AS \"Avg Views\" FROM metrics_latest",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Avg Views/Post",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "semi-dark-orange",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 8,
+                    "y": 12
+                },
+                "id": 9,
+                "options": {
+                    "colorMode": "background",
+                    "graphMode": "none"
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT ROUND(AVG(likes), 1) AS \"Avg Likes\" FROM metrics_latest",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Avg Likes/Post",
+                "type": "stat"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "views"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.width",
+                                    "value": 80
+                                }
+                            ]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "likes"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.width",
+                                    "value": 70
+                                }
+                            ]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "replies"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.width",
+                                    "value": 70
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 8
+                },
+                "id": 10,
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT p.\"timestamp\", LEFT(p.text, 120) AS text, m.views, m.likes, m.replies, m.reposts, p.variety FROM posts p JOIN metrics_latest m ON m.post_id = p.id ORDER BY m.views DESC NULLS LAST LIMIT 10",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Top Posts by Views",
+                "type": "table"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "fillOpacity": 10,
+                            "lineWidth": 2
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "views"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.axisPlacement",
+                                    "value": "right"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 16
+                },
+                "id": 11,
+                "targets": [
+                    {
+                        "format": "time_series",
+                        "rawSql": "SELECT date_trunc('day', p.\"timestamp\") AS time, SUM(m.views) AS views FROM posts p JOIN metrics_latest m ON m.post_id = p.id WHERE $__timeFilter(p.\"timestamp\") GROUP BY 1 ORDER BY 1",
+                        "refId": "A"
+                    },
+                    {
+                        "format": "time_series",
+                        "rawSql": "SELECT date_trunc('day', p.\"timestamp\") AS time, SUM(m.likes) AS likes FROM posts p JOIN metrics_latest m ON m.post_id = p.id WHERE $__timeFilter(p.\"timestamp\") GROUP BY 1 ORDER BY 1",
+                        "refId": "B"
+                    },
+                    {
+                        "format": "time_series",
+                        "rawSql": "SELECT date_trunc('day', p.\"timestamp\") AS time, SUM(m.replies) AS replies FROM posts p JOIN metrics_latest m ON m.post_id = p.id WHERE $__timeFilter(p.\"timestamp\") GROUP BY 1 ORDER BY 1",
+                        "refId": "C"
+                    }
+                ],
+                "title": "Daily Engagement",
+                "type": "timeseries"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "fixedColor": "red",
+                            "mode": "fixed"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 16
+                },
+                "id": 12,
+                "options": {
+                    "bucketCount": 20
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT surprise FROM surprise_scores WHERE surprise IS NOT NULL",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Surprise Score Distribution",
+                "type": "histogram"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 24
+                },
+                "id": 13,
+                "options": {
+                    "calculate": false,
+                    "color": {
+                        "scheme": "Oranges"
+                    },
+                    "yAxis": {
+                        "axisLabel": "Day of Week"
+                    }
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT EXTRACT(DOW FROM \"timestamp\") AS day_of_week, EXTRACT(HOUR FROM \"timestamp\") AS hour, COUNT(*) AS count FROM posts GROUP BY 1, 2 ORDER BY 1, 2",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Posting Heatmap",
+                "type": "heatmap"
+            },
+            {
+                "datasource": {
+                    "type": "grafana-postgresql-datasource",
+                    "uid": "efi56e8ur3kzkd"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "palette-classic"
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 24
+                },
+                "id": 14,
+                "options": {
+                    "stacking": "none",
+                    "xTickLabelRotation": -45
+                },
+                "targets": [
+                    {
+                        "format": "table",
+                        "rawSql": "SELECT t.tag, ROUND(AVG(m.views)) AS avg_views, ROUND(AVG(m.likes), 1) AS avg_likes, COUNT(*) AS post_count FROM tags t JOIN metrics_latest m ON m.post_id = t.post_id GROUP BY t.tag HAVING COUNT(*) >= 2 ORDER BY avg_views DESC LIMIT 15",
+                        "refId": "A"
+                    }
+                ],
+                "title": "Tag Engagement (Avg Views per Tag)",
+                "type": "barchart"
+            }
+        ],
+        "refresh": "5m",
+        "schemaVersion": 39,
+        "tags": [
+            "threads",
+            "social"
+        ],
+        "time": {
+            "from": "now-90d",
+            "to": "now"
+        },
+        "timezone": "browser",
+        "title": "Threads Analysis",
+        "uid": "threads-analysis",
+        "version": 1
+    }
+}

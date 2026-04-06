@@ -1,13 +1,13 @@
 # Threads Analysis — @maybe_foucault
 
 ## Overview
-Standalone analysis platform for ~46K Threads posts from @maybe_foucault. Extracted from ByTheWeiCo's archival visualization into its own project for deeper, independent analysis work.
+Standalone analysis platform for ~50K Threads posts from @maybe_foucault. Information theory, knowledge graphs, discourse taxonomy, RAG search, haiku oracle, iOS Shortcuts API.
 
 ## Project Config
 ```yaml
 name: threads-analysis
-stack: Node.js (ESM), PostgreSQL 17, Docker, Vitest
-phase: Active — Docker auto-sync running, Postgres seeded, analysis pipeline ready
+stack: Node.js (ESM), Python (Flask), PostgreSQL 17 + pgvector, Ollama, Docker, Vitest
+phase: Active — Docker auto-sync running, dual APIs live, embeddings in progress
 account: @maybe_foucault (Threads user ID: 25703740162660740)
 origin: Forked analysis scripts from ByTheWeiCo (Feb 2026)
 ```
@@ -17,10 +17,22 @@ origin: Forked analysis scripts from ByTheWeiCo (Feb 2026)
 scripts/
   sync-worker.mjs                   # Docker entrypoint — auto-sync on interval (default 30min)
   db.mjs                            # Postgres pool + upsert helpers (lazy init)
-  db-seed.mjs                       # Backfill posts.json → Postgres (46K posts in ~10s)
+  db-seed.mjs                       # Backfill posts.json → Postgres
+  seed-from-json.mjs                # Seed Postgres from static JSON files
   threads-sync.mjs                  # Standalone Threads API sync → data/threads/posts.json
   threads-backfill-metrics.mjs      # Batch engagement metrics for older posts
   threads-backfill-replies.mjs      # One-time reply history backfill
+  api-server.mjs                    # Node REST API on :4322 (26 endpoints, Gemma 4 RAG)
+  embed-posts.mjs                   # Batch embed posts via Ollama nomic-embed-text → pgvector
+  enrich-posts.mjs                  # Compute sentiment, energy, intent, language (no LLM)
+  add-vector-column.mjs             # Migration: pgvector extension + embedding column
+  add-enrichment-columns.mjs        # Migration: sentiment, energy, vibe, intent columns
+  haiku-agent.mjs                   # Haiku oracle: random posts → Gemma 4 → haiku → iMessage
+  monitor-embeddings.sh             # 15-min health monitor, iMessage alerts on failure
+  start.sh                          # One-command startup (Postgres + Ollama + API)
+  extract-mentions.mjs              # Parse @mentions → interactions table
+  https-proxy.mjs                   # HTTPS proxy for local dev
+  keyword-search.mjs                # CLI keyword search utility
   adapters/
     threads-adapter.mjs             # Raw API → unified event schema (filters REPOST_FACADE)
   analysis/
@@ -29,39 +41,62 @@ scripts/
     sub-classifiers.mjs             # 9 parents → 35 sub-tags (keyword regex)
     knowledge-graph.mjs             # PMI co-occurrence + TF-IDF → public/data/knowledge-graph.json
   __tests__/                        # Vitest tests
+api/
+  app.py                            # Flask API on :4323 (40+ endpoints, Swagger UI, llms.txt)
+  Dockerfile                        # Python 3.12-slim + gunicorn
+  requirements.txt                  # flask-openapi3, psycopg2-binary, gunicorn, flask-cors
+  llms.txt                          # Full LLM instruction file for API discovery
+  llms-mini.txt                     # Compact quick reference
 db/
-  init.sql                          # Full Postgres schema (13 tables, enums, materialized view, GIN index)
+  init.sql                          # Full Postgres schema (17 tables, enums, materialized view, GIN index)
 data/
-  threads/posts.json                # Raw posts (symlinked to ByTheWeiCo's copy, 23MB, ~46K posts)
+  threads/posts.json                # Raw posts (23MB+)
 public/data/
-  post-tags.json                    # 37,912 classified posts (20 tags, 35 sub-tags, surprise scores)
-  knowledge-graph.json              # 1,638 nodes, 11,155 edges
+  post-tags.json                    # Classified posts (20 tags, 35 sub-tags, surprise scores)
+  knowledge-graph.json              # Knowledge graph (nodes + edges)
 docs/
+  ios-shortcuts-guide.md            # 7 iOS Shortcut recipes
+  visionos-native-app-design.md     # 7 visualization concepts for Vision Pro
+  grafana-dashboard.json            # Grafana dashboard export (14 panels)
   threads-api-reference.md          # OAuth, endpoints, rate limits
   threads-chronology.md             # 7-section Foucauldian analysis page spec
   threads-taxonomy.md               # Treemap + sub-tag audit
   threads-network.md                # Force-directed graph + visionOS WebXR
   threads-discourse.md              # 9-category deep-dive + Foucault Index
-docker-compose.yml                  # Postgres 17 + sync worker
-Dockerfile                          # Node 22 Alpine for sync worker
+docker-compose.yml                  # 5 services (postgres, sync, web, api, flask-api)
+Dockerfile                          # Node 22 Alpine for sync worker + API
+Dockerfile.web                      # Astro dashboard
 ```
 
 ## Docker Infrastructure
 ```yaml
 services:
-  postgres: Postgres 17 Alpine on port 5433, schema auto-applied from db/init.sql
-  sync: Node 22 Alpine worker, auto-syncs every SYNC_INTERVAL_MINUTES (default 30)
+  postgres: pgvector/pgvector:pg17 on :5433 (pgvector enabled)
+  sync: Node 22 worker, auto-pulls every 30 min (profile: data, full)
+  web: Astro dashboard on :4321 (profile: web, full)
+  api: Node REST API on :4322 — RAG + Gemma 4 (profile: api, full)
+  flask-api: Flask API on :4323 — iOS Shortcuts + Swagger UI (profile: api, full)
 volumes:
   pgdata: Persisted Postgres data
   ./data + ./public/data: Mounted into sync container
 ```
 
-## Postgres Schema (13 tables)
+## Postgres Schema (17 tables)
 ```
 users              # Tracked accounts
-posts              # Every post/reply/quote/repost (45,938 rows, GIN text search)
+posts              # Every post/reply/quote/repost (50,706 rows, GIN text search)
+  .embedding       # vector(768) — pgvector column (nomic-embed-text)
+  .sentiment       # Computed: sentiment score
+  .energy          # Computed: energy level
+  .intent          # Computed: post intent
+  .language        # Computed: language
+  .vibe            # Computed: vibe classification
+  .audience        # Computed: target audience
+  .abstraction_level  # Computed: abstraction level
+  .hour_bucket     # Computed: hour bucket
+  .is_weekend      # Computed: weekend flag
 carousel_items     # Media items within CAROUSEL_ALBUM posts
-metrics            # Time-series engagement snapshots (views, likes, replies, reposts, quotes, shares)
+metrics            # Time-series engagement snapshots
 metrics_latest     # Materialized view — most recent metrics per post
 tags               # 20-tag taxonomy per post (multi-label + primary flag)
 sub_tags           # 35 colon-namespaced sub-tags
@@ -69,6 +104,9 @@ surprise_scores    # Per-post information-theoretic analysis
 kg_nodes           # Knowledge graph nodes (tag, concept, bridge)
 kg_edges           # Knowledge graph edges (co-occurrence, temporal, hierarchy)
 conversations      # Reply trees from /conversation endpoint
+interactions       # @mention graph (1,746 rows, 422 users)
+haikus             # Haiku oracle outputs (UUID primary key)
+haiku_edges        # Graph: haiku → source posts
 sync_log           # Every sync run with stats + error details
 tokens             # OAuth token lifecycle (hashed, never raw)
 corpus_snapshots   # Periodic corpus-level analysis snapshots
@@ -77,55 +115,68 @@ corpus_snapshots   # Periodic corpus-level analysis snapshots
 ## Key Commands
 ```bash
 # Docker
-docker compose up -d         # Start Postgres + sync worker
-docker compose down          # Stop everything
-docker compose logs -f sync  # Watch sync worker output
+docker compose up -d              # Start Postgres (always)
+docker compose --profile full up -d  # Start everything
+docker compose --profile full down   # Stop everything
 
-# Manual sync (writes to posts.json)
-npm run sync                 # Sync posts from Threads API (incremental)
-npm run sync:replies         # Backfill full reply history
-npm run sync:metrics         # Backfill engagement metrics
+# Sync
+npm run sync          # Pull from Threads API (incremental)
+npm run sync:replies  # Backfill full reply history
+npm run sync:metrics  # Backfill engagement metrics
 
 # Database
-npm run db:seed              # Backfill posts.json → Postgres (~10s for 46K posts)
-npm run worker               # Run sync worker locally (outside Docker)
+npm run db:seed       # Backfill posts.json → Postgres
+npm run seed:json     # Seed from static JSON files
+
+# Embeddings & Enrichment
+npm run embed         # Embed all posts via Ollama nomic-embed-text
+npm run enrich        # Compute sentiment, energy, intent (no LLM)
 
 # Analysis
-npm run analyze              # Run information-theory + knowledge-graph analysis
-npm run full                 # sync + analyze
+npm run analyze       # Information theory + knowledge graph
+npm run full          # sync + analyze
+
+# APIs
+npm run api           # Start Node API on :4322
+bash scripts/start.sh # Start everything (Postgres + Ollama + API)
+
+# Haiku Oracle
+npm run haiku         # Generate one haiku
+npm run haiku:loop    # Run haiku oracle (2-4 random times/day)
 
 # Testing
-npm test                     # Vitest
-npm run test:watch           # Vitest watch mode
+npm test              # Vitest
+npm run test:watch    # Vitest watch mode
 ```
 
 ## Corpus Stats
-- **Posts**: 45,938 total in Postgres (5,548 original, 28,098 replies, 6,136 quotes, 6,156 reposts)
-- **Text posts**: ~37,912 with text (excludes REPOST_FACADE + empty)
-- **Taxonomy**: 20 primary tags, 35 sub-tags (colon-namespaced: parent:child)
-- **Engagement**: views, likes, replies, reposts, quotes (from April 2024 onward)
-- **Date range**: July 29, 2024 → Feb 22, 2026
+- **Posts**: 50,706 total (12,096 original, 30,707 replies, 7,901 quotes)
+- **With text**: 41,943
+- **Tags**: 54,689 across 20 categories
+- **Interactions**: 1,746 across 422 users
+- **Knowledge graph**: 1,896 nodes, 12,039 edges
+- **Embeddings**: in progress (nomic-embed-text 768d via pgvector)
 
 ## Analysis Pipeline
 ```
 data/threads/posts.json (raw API data)
-  ↓ information-theory.mjs
-  │   → character, word, bigram entropy
-  │   → Zipf exponent, Heaps' law
-  │   → 20-tag heuristic classification (regex, priority-ordered)
-  │   → LLM tag overrides (data/llm-tag-overrides.json, optional)
-  │   → sub-classifiers.mjs (35 sub-tags via keyword regex)
-  │   → per-post surprise scores (self-information in bits)
-  │   → mutual information: tag×quote, tag×hour, tag×length, tag×day
-  │   → topic transition entropy, burst analysis
-  ↓ public/data/post-tags.json
-  ↓ knowledge-graph.mjs
-  │   → PMI-weighted co-occurrence edges (tags + sub-tags)
-  │   → temporal proximity edges (5-post sliding window)
-  │   → TF-IDF concept nodes (top 10 per category)
-  │   → bridge concepts (words spanning 3+ categories)
-  │   → hierarchy edges (parent → sub-tag)
-  ↓ public/data/knowledge-graph.json
+  | information-theory.mjs
+  |   → character, word, bigram entropy
+  |   → Zipf exponent, Heaps' law
+  |   → 20-tag heuristic classification (regex, priority-ordered)
+  |   → LLM tag overrides (data/llm-tag-overrides.json, optional)
+  |   → sub-classifiers.mjs (35 sub-tags via keyword regex)
+  |   → per-post surprise scores (self-information in bits)
+  |   → mutual information: tag*quote, tag*hour, tag*length, tag*day
+  |   → topic transition entropy, burst analysis
+  v public/data/post-tags.json
+  | knowledge-graph.mjs
+  |   → PMI-weighted co-occurrence edges (tags + sub-tags)
+  |   → temporal proximity edges (5-post sliding window)
+  |   → TF-IDF concept nodes (top 10 per category)
+  |   → bridge concepts (words spanning 3+ categories)
+  |   → hierarchy edges (parent → sub-tag)
+  v public/data/knowledge-graph.json
 ```
 
 ## Threads API Reference
@@ -139,7 +190,7 @@ data/threads/posts.json (raw API data)
 ## Environment Variables (.env)
 ```
 THREADS_ACCESS_TOKEN     # Threads API OAuth token
-THREADS_USER_ID          # 25703740162660740
+THREADS_USER_ID          # Threads user ID
 THREADS_APP_ID           # App ID
 APP_SECRETS              # App secret
 THREADS_USER_SECRETS     # User secret
@@ -148,10 +199,11 @@ POSTGRES_USER            # Default: threads
 POSTGRES_DB              # Default: threads
 POSTGRES_HOST            # localhost (host) or postgres (Docker)
 POSTGRES_PORT            # 5433 (mapped from 5432)
-DATABASE_URL             # postgres://threads:threads_local_dev@localhost:5433/threads
+DATABASE_URL             # postgres://threads:<password>@localhost:5433/threads
 SYNC_INTERVAL_MINUTES    # Default: 30
 METRICS_BATCH_SIZE       # Default: 200
 FULL_SYNC_ON_START       # Default: false
+OLLAMA_URL               # Default: http://localhost:11434 (or host.docker.internal in Docker)
 ```
 
 ## Conventions
@@ -162,3 +214,5 @@ FULL_SYNC_ON_START       # Default: false
 - Surprise: average self-information per word in bits (higher = more surprising)
 - .env is gitignored — never commit API tokens
 - db.mjs uses lazy pool init so importers can set DATABASE_URL before first query
+- Dev servers bind to 0.0.0.0 (Tailscale accessible)
+- Node API (:4322) for RAG/semantic search; Flask API (:4323) for iOS Shortcuts + Swagger

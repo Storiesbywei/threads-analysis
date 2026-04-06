@@ -1,0 +1,104 @@
+# Threads Analysis API
+
+> API for querying ~46K Threads posts by @maybe_foucault. Postgres-backed, Tailscale-accessible.
+
+## Base URL
+http://100.71.141.45:4323
+
+## Authentication
+None required (local network only via Tailscale)
+
+## Response Format
+All endpoints return JSON:
+- `posts`: array of post objects (for post endpoints)
+- `data`: object (for stats/digest endpoints)
+- `count`: number of results
+- `query`: what was queried
+- `generated_at`: ISO timestamp
+
+## Post Object
+- id: string — Threads media ID
+- text: string — post body (max 500 chars)
+- timestamp: ISO string
+- ago: string — human-readable relative time ("2 hours ago")
+- variety: original | reply | quote | repost
+- tags: string[] — topic tags
+- primary_tag: string — main tag
+- surprise: float — information-theoretic unexpectedness (higher = more unusual)
+- word_count: int
+- permalink: URL to threads.net
+- metrics: { views, likes, replies, reposts, quotes }
+
+## Endpoints
+
+### Time-Based Queries (most useful for "what did I post...")
+- GET /posts/now — last 30 minutes
+- GET /posts/hour — last hour
+- GET /posts/today — today's posts
+- GET /posts/week — this week
+- GET /posts/month — this month
+- GET /posts/since?minutes=N — last N minutes
+- GET /posts/between?from=ISO&to=ISO — date range
+- GET /posts/latest?n=10 — last N posts
+
+### Search & Discovery
+- GET /posts/search?q=term — full-text search
+- GET /posts/tag/{tag} — posts by tag
+- GET /posts/tag/{tag}/latest?n=5 — latest N in tag
+- GET /posts/random — random post
+- GET /posts/random/{tag} — random post from tag
+- GET /posts/{id} — single post
+
+### Analytics
+- GET /stats/overview — totals, date range, posts today/week/month
+- GET /stats/streak — consecutive posting days
+- GET /stats/top?by=views&n=10 — top posts by metric (views|likes|replies)
+- GET /stats/top/today — most engaged today
+- GET /stats/hourly — posts per hour today
+- GET /stats/daily — posts per day this week
+- GET /stats/tags — all tags with counts and percentages
+- GET /stats/velocity — posting rate (7d, 30d, 90d averages)
+
+### Social
+- GET /social/mentions — top 20 mentioned users
+- GET /social/interactions — interaction summary
+- GET /social/conversations/{post_id} — reply thread
+
+### Knowledge Graph
+- GET /graph/topics — tag clusters
+- GET /graph/related/{tag} — related tags
+
+### Digests (great for Apple Intelligence summaries)
+- GET /digest/today — structured today summary
+- GET /digest/week — weekly summary
+- GET /digest/brief — one natural language paragraph of last 24h
+
+## Tags (20 categories)
+philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, shitpost
+
+## Example Queries
+
+"What did I post in the last hour?"
+GET /posts/hour
+
+"Show me my philosophy posts from today"
+GET /posts/tag/philosophy/latest?n=20
+
+"What's my most liked post?"
+GET /stats/top?by=likes&n=1
+
+"Give me a quick summary"
+GET /digest/brief
+
+"Search for posts about Foucault"
+GET /posts/search?q=foucault
+
+"Who do I talk to the most?"
+GET /social/mentions
+
+## Notes
+- Data syncs every 30 minutes from Threads API
+- Surprise scores: 0-5 = normal, 5-10 = interesting, 10+ = very unusual
+- Posts without text (reposts) have text=null
+- Metrics available from April 2024 onward
+- Swagger UI with try-it-out at /docs

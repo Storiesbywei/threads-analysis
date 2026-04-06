@@ -195,6 +195,51 @@ CREATE TABLE conversations (
 
 CREATE INDEX idx_conversations_root ON conversations(root_post_id);
 
+-- ─── INTERACTIONS ────────────────────────────────────────
+-- @mention interaction graph extracted from post text
+
+CREATE TABLE interactions (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  post_id         TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  from_username   TEXT NOT NULL,
+  to_username     TEXT NOT NULL,
+  interaction_type TEXT NOT NULL,           -- 'reply_to', 'mention', 'quoted_by', 'commented_on'
+  post_text       TEXT,
+  timestamp       TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE (post_id, from_username, to_username, interaction_type)
+);
+
+CREATE INDEX idx_interactions_from ON interactions(from_username);
+CREATE INDEX idx_interactions_to ON interactions(to_username);
+CREATE INDEX idx_interactions_type ON interactions(interaction_type);
+
+-- ─── HAIKU ORACLE (GRAPH) ────────────────────────────────
+-- Output nodes + edges to source posts
+
+CREATE TABLE haikus (
+  uuid            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  haiku           TEXT NOT NULL,
+  model           TEXT NOT NULL,
+  generated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE haiku_edges (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  haiku_uuid      UUID NOT NULL REFERENCES haikus(uuid) ON DELETE CASCADE,
+  post_id         TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  period          TEXT,
+  post_text       TEXT,
+  post_timestamp  TIMESTAMPTZ,
+  edge_type       TEXT DEFAULT 'source',
+
+  UNIQUE (haiku_uuid, post_id)
+);
+
+CREATE INDEX idx_haiku_edges_uuid ON haiku_edges(haiku_uuid);
+CREATE INDEX idx_haiku_edges_post ON haiku_edges(post_id);
+
 -- ─── SYNC LOG ─────────────────────────────────────────────
 -- Track every sync run
 

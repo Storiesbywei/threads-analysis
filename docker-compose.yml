@@ -1,7 +1,7 @@
 services:
   # ─── Always runs: Postgres ─────────────────────────────────
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: threads
@@ -60,6 +60,42 @@ services:
       DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
     volumes:
       - ./public/data:/app/public/data
+
+  # ─── API layer: REST API on :4322 ──────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles: [api, full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4322:4322"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4322"
+      DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
+      OLLAMA_URL: http://host.docker.internal:11434
+    command: node scripts/api-server.mjs
+
+  # ─── Flask API: iOS Shortcuts + Swagger UI on :4323 ─────
+  flask-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles: [api, full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4323:4323"
+    environment:
+      DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
+      OLLAMA_URL: http://host.docker.internal:11434
+      FLASK_ENV: production
 
 volumes:
   pgdata:

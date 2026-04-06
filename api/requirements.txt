@@ -1,0 +1,4 @@
+flask-openapi3[swagger,redoc,rapidoc,rapipdf,scalar,elements]>=3.0
+psycopg2-binary>=2.9
+gunicorn>=21.0
+flask-cors>=4.0

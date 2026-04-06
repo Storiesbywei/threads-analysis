@@ -1,0 +1,23 @@
+# Threads API — http://100.71.141.45:4323
+
+46K posts by @maybe_foucault. No auth. JSON responses.
+
+## Quick endpoints
+/posts/now — last 30 min
+/posts/hour — last hour
+/posts/today — today
+/posts/latest?n=10 — last N
+/posts/search?q=term — search
+/posts/tag/{tag} — by topic
+/posts/random — random post
+/stats/overview — summary stats
+/stats/top?by=views&n=5 — top posts
+/digest/brief — natural language summary
+/social/mentions — who I talk to
+/docs — Swagger UI
+
+## Tags
+philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, shitpost
+
+## Post fields
+id, text, timestamp, ago, variety, tags, primary_tag, surprise, word_count, permalink, metrics{views,likes,replies,reposts,quotes}
