@@ -1,6 +1,8 @@
 # Threads Analysis
 
-Analysis platform for 50K+ Threads posts by @maybe_foucault -- information theory, knowledge graphs, RAG search, haiku oracle, and iOS Shortcuts integration.
+Self-hosted analysis platform for your Threads account. Pulls your posts via the Threads API, runs information theory, HDBSCAN clustering, knowledge graphs, sentiment analysis, and serves everything through Grafana dashboards and REST APIs.
+
+Bring your own Threads API credentials — the platform analyzes whatever account you connect.
 
 ## Architecture
 
@@ -12,43 +14,44 @@ Analysis platform for 50K+ Threads posts by @maybe_foucault -- information theor
                               v
   +-----------+    +---------------------+    +-------------------+
   | posts.json| -> | PostgreSQL 17       | <- | embed-posts.mjs   |
-  | (raw API) |    | + pgvector          |    | (nomic-embed-text)|
-  +-----------+    | 17 tables           |    +-------------------+
-                   | 50K+ posts          |
+  | (raw API) |    | + pgvector          |    | (multi-model)     |
+  +-----------+    | 17+ tables          |    +-------------------+
                    +----+-------+--------+
                         |       |        |
               +---------+    +--+--+   +-+----------+
               v              v     v   v             v
-        Node API       Flask API  Astro         Haiku Oracle
-        :4322          :4323      :4321         (Gemma 4 -> iMessage)
-        RAG search     Swagger    Dashboard
+        Node API       Flask API  Grafana      Palace Graph
+        :4322          :4323      :3002        (Gemma 4 navigator)
+        RAG search     Swagger    8 dashboards
         Gemma 4        iOS Shortcuts
-                       40+ endpoints
 ```
 
 ## Quick Start
 
 ```bash
-# 1. Clone and configure
-cp .env.example .env   # Fill in THREADS_ACCESS_TOKEN, THREADS_USER_ID, etc.
+# 1. Clone and install
+git clone https://github.com/Storiesbywei/threads-analysis.git
+cd threads-analysis
+npm install
 
-# 2. Start Postgres (always needed)
-docker compose up -d
+# 2. Set up your credentials
+cp .env.example .env
+# Edit .env — add your THREADS_ACCESS_TOKEN and THREADS_USER_ID
+# See docs/getting-started.md for how to get these
 
-# 3. Seed the database
-npm run db:seed        # From posts.json
-npm run seed:json      # Or from static JSON files
-
-# 4. Start APIs
-npm run api            # Node API on :4322
-# Flask API runs via Docker:
-docker compose --profile api up -d   # Flask on :4323
-
-# 5. Or start everything at once
-bash scripts/start.sh  # Postgres + Ollama + API
-# Or via Docker:
+# 3. Start everything
 docker compose --profile full up -d
+
+# 4. Pull your data
+npm run sync              # Pull posts from your Threads account
+npm run db:seed           # Seed Postgres
+npm run enrich            # Compute sentiment, energy, intent
+npm run sync:metrics      # Backfill engagement metrics
 ```
+
+Open **http://localhost:3002** for Grafana dashboards.
+
+See **[docs/getting-started.md](docs/getting-started.md)** for the full setup guide including Threads API credentials.
 
 ## Docker Services
 
@@ -56,83 +59,86 @@ docker compose --profile full up -d
 |------------|--------------------------|------|----------------------------------|
 | postgres   | pgvector/pgvector:pg17   | 5433 | Postgres + pgvector              |
 | sync       | Node 22 Alpine           | --   | Auto-sync every 30 min           |
-| web        | Astro                    | 4321 | Dashboard                        |
 | api        | Node 22 Alpine           | 4322 | REST API, RAG search, Gemma 4    |
 | flask-api  | Python 3.12-slim         | 4323 | iOS Shortcuts, Swagger UI        |
+| grafana    | Grafana OSS              | 3002 | 8 dashboards, auto-provisioned   |
 
-Profiles: `data` (postgres+sync), `web`, `api`, `full` (everything).
+Profiles: `data` (postgres+sync), `api`, `full` (everything).
+
+## Grafana Dashboards
+
+8 dashboards auto-provision on startup — no manual config needed:
+
+| Dashboard               | Panels | Description                                    |
+|-------------------------|--------|------------------------------------------------|
+| Threads Analysis        | 25     | Main overview — post volume, types, tags       |
+| Personal Analytics      | 20     | Sentiment, energy, timing, posting patterns    |
+| Content Performance     | 17     | Engagement metrics, viral analysis             |
+| Community               | 11     | Social interactions, top repliers              |
+| Relationship Explorer   | 11     | Drill into any person's interactions           |
+| Cluster Landscape       | 15     | HDBSCAN topic clusters, emotional landscape    |
+| Embedding Model Arena   | 14     | Compare how different models cluster your data |
+| Thread Palace           | 15     | Navigate the knowledge graph hierarchy         |
 
 ## API Endpoints
 
-Flask API on `:4323` -- Swagger UI at `/docs`, llms.txt at `/llms.txt`.
+### Node API (`:4322`)
 
-### Time-Based
-| Endpoint                         | Description              |
-|----------------------------------|--------------------------|
-| `GET /posts/now`                 | Last 30 minutes          |
-| `GET /posts/hour`                | Last hour                |
-| `GET /posts/today`               | Today's posts            |
-| `GET /posts/week`                | This week                |
-| `GET /posts/month`               | This month               |
-| `GET /posts/since?minutes=N`     | Last N minutes           |
-| `GET /posts/between?from=&to=`   | Date range               |
-| `GET /posts/latest?n=10`         | Last N posts             |
+| Category | Endpoints |
+|----------|-----------|
+| Posts | `GET /api/posts`, `/api/posts/search?q=`, `/api/posts/recent`, `/api/posts/random`, `/api/posts/stats` |
+| Metrics | `GET /api/metrics/top`, `/api/metrics/summary`, `/api/metrics/daily` |
+| Tags | `GET /api/tags`, `/api/tags/cloud`, `/api/tags/:tag` |
+| Graph | `GET /api/graph/nodes`, `/api/graph/edges`, `/api/graph/neighbors/:id` |
+| Clusters | `GET /api/clusters`, `/api/clusters/:id/posts`, `/api/clusters/overlap` |
+| Palace | `GET /api/palace/topology`, `/api/palace/wings/:id`, `/api/palace/rooms/:id` |
+| Models | `GET /api/models` |
+| AI | `POST /api/ask` (RAG via Ollama) |
 
-### Search and Discovery
-| Endpoint                         | Description              |
-|----------------------------------|--------------------------|
-| `GET /posts/search?q=term`       | Full-text search         |
-| `GET /posts/tag/{tag}`           | Posts by tag             |
-| `GET /posts/tag/{tag}/latest?n=` | Latest N in tag          |
-| `GET /posts/random`              | Random post              |
-| `GET /posts/random/{tag}`        | Random from tag          |
-| `GET /posts/{id}`                | Single post by ID        |
+Full spec: `http://localhost:4322/api/openapi.json`
 
-### Analytics
-| Endpoint                         | Description              |
-|----------------------------------|--------------------------|
-| `GET /stats/overview`            | Totals, date range       |
-| `GET /stats/streak`              | Consecutive posting days |
-| `GET /stats/top?by=views&n=10`   | Top posts by metric      |
-| `GET /stats/top/today`           | Most engaged today       |
-| `GET /stats/hourly`              | Posts per hour today     |
-| `GET /stats/daily`               | Posts per day this week  |
-| `GET /stats/tags`                | All tags with counts     |
-| `GET /stats/velocity`            | Posting rate averages    |
+### Flask API (`:4323`)
 
-### Social
-| Endpoint                         | Description              |
-|----------------------------------|--------------------------|
-| `GET /social/mentions`           | Top mentioned users      |
-| `GET /social/interactions`       | Interaction summary      |
-| `GET /social/conversations/{id}` | Reply thread             |
+| Category | Endpoints |
+|----------|-----------|
+| Time-based | `/posts/now`, `/posts/today`, `/posts/week`, `/posts/since?minutes=N` |
+| Search | `/posts/search?q=`, `/posts/tag/{tag}`, `/posts/random` |
+| Analytics | `/stats/overview`, `/stats/streak`, `/stats/top`, `/stats/velocity` |
+| Social | `/social/mentions`, `/social/interactions`, `/social/conversations/{id}` |
+| Clusters | `/clusters`, `/clusters/summary`, `/palace/navigate?q=`, `/palace/edges` |
+| Digests | `/digest/today`, `/digest/week`, `/digest/brief` |
+| Models | `/models` |
 
-### Knowledge Graph and Digests
-| Endpoint                         | Description              |
-|----------------------------------|--------------------------|
-| `GET /graph/topics`              | Tag clusters             |
-| `GET /graph/related/{tag}`       | Related tags             |
-| `GET /digest/today`              | Structured day summary   |
-| `GET /digest/week`               | Weekly summary           |
-| `GET /digest/brief`              | Natural language 24h     |
+Swagger UI: `http://localhost:4323/docs`
 
-## iOS Shortcuts
+## Optional Features
 
-The Flask API (`:4323`) is designed for iOS Shortcuts via "Get Contents of URL" actions. See `docs/ios-shortcuts-guide.md` for 7 ready-to-use recipes:
+These require [Ollama](https://ollama.com/) running locally:
 
-- "What did I post today?" -- `/posts/today`
-- "Random post" -- `/posts/random`
-- "Search my posts" -- `/posts/search?q=`
-- "Daily digest" -- `/digest/brief`
-- "Top posts" -- `/stats/top?by=views&n=5`
-- "Who I talk to" -- `/social/mentions`
-- "Stats overview" -- `/stats/overview`
+### Embeddings & Clustering
 
-All endpoints return JSON. No authentication required (Tailscale network only).
+```bash
+ollama pull all-minilm
+npm run embed                                    # Embed posts (384d vectors)
+node scripts/embed-multimodel.mjs --model=all    # 9 embedding models
+python3 scripts/cluster-explorer.py              # HDBSCAN clustering
+python3 scripts/palace/sync_clusters.py          # Build palace graph
+python3 scripts/palace/rename_clusters.py        # Gemma 4 names clusters
+```
 
-## Haiku Oracle
+### Palace Graph Navigator
 
-Picks random posts from different time periods, feeds them to Gemma 4 via Ollama, generates a haiku distillation, saves it to the `haikus` table with graph edges to source posts, then sends it via iMessage.
+The palace graph is a hierarchical index over your HDBSCAN clusters, adapted from the [babel-palace](https://github.com/Storiesbywei/babel-palace) architecture. Gemma 4 routes through the hierarchy locally (~1,125 tokens per traversal, invisible to the caller).
+
+```bash
+ollama pull gemma4:e4b
+python3 scripts/palace/navigate.py --interactive
+python3 scripts/palace/navigate.py "what do I post about late at night"
+```
+
+### Haiku Oracle
+
+Picks random posts, feeds them to Gemma 4, generates a haiku, sends it via iMessage.
 
 ```bash
 npm run haiku         # Generate one haiku
@@ -142,46 +148,44 @@ npm run haiku:loop    # Run 2-4 random times per day
 ## Data Pipeline
 
 ```
-Threads API -> sync-worker -> posts.json -> Postgres
-                                              |
-                    +-------------------------+-------------------------+
-                    |                         |                         |
-           information-theory.mjs      embed-posts.mjs          enrich-posts.mjs
-           (entropy, tags, surprise)   (nomic-embed-text 768d)  (sentiment, energy, intent)
-                    |                         |                         |
-                    v                         v                         v
-           post-tags.json             posts.embedding            enrichment columns
-           knowledge-graph.json       (pgvector)                 (no LLM needed)
+Threads API -> sync-worker -> Postgres
+                                 |
+               +-----------------+-----------------+
+               |                 |                 |
+        enrich-posts.mjs   embed-posts.mjs   cluster-explorer.py
+        (sentiment,        (9 embedding      (HDBSCAN + UMAP
+         energy, intent)    models)           + Gemma 4 naming)
+               |                 |                 |
+               v                 v                 v
+        enrichment cols    pgvector cols     embedding_clusters
+                                            post_clusters
+                                            tp_nodes / tp_edges
 ```
 
-20 tags: philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, shitpost.
+## iOS Shortcuts
+
+The Flask API is designed for iOS Shortcuts via "Get Contents of URL":
+
+- "What did I post today?" — `/posts/today`
+- "Random post" — `/posts/random`
+- "Search my posts" — `/posts/search?q=`
+- "Daily digest" — `/digest/brief`
+- "Cluster summary" — `/clusters/summary`
+
+All endpoints return JSON. No authentication required (designed for local/Tailscale network).
 
 ## Tech Stack
 
 - **Runtime**: Node.js 22 (ESM), Python 3.12
 - **Database**: PostgreSQL 17 + pgvector
-- **Embeddings**: Ollama + nomic-embed-text (768d)
-- **LLM**: Gemma 4 via Ollama (RAG search, haiku generation)
-- **Web**: Astro + React + Three.js (force-directed graphs)
-- **APIs**: Express (Node, :4322), Flask + flask-openapi3 (Python, :4323)
+- **Embeddings**: Ollama (9 models: all-minilm, nomic, bge-m3, mxbai, snowflake, granite, qwen3, arctic2, nomic-v2-moe)
+- **LLM**: Gemma 4 via Ollama (cluster naming, RAG, haiku)
+- **Clustering**: HDBSCAN + UMAP dimensionality reduction
+- **Dashboards**: Grafana OSS (auto-provisioned)
+- **APIs**: Node HTTP (`:4322`), Flask + flask-openapi3 (`:4323`)
 - **Infra**: Docker Compose, Tailscale
-- **Testing**: Vitest
-
-## Corpus Stats
-
-| Metric         | Value                                  |
-|----------------|----------------------------------------|
-| Total posts    | 50,706                                 |
-| Original       | 12,096                                 |
-| Replies        | 30,707                                 |
-| Quotes         | 7,901                                  |
-| With text      | 41,943                                 |
-| Tags assigned  | 54,689 across 20 categories            |
-| Interactions   | 1,746 across 422 users                 |
-| KG nodes       | 1,896                                  |
-| KG edges       | 12,039                                 |
-| Embeddings     | In progress (nomic-embed-text 768d)    |
+- **Testing**: Vitest, pipeline-audit.mjs (57 tests)
 
 ## Configuration
 
-Copy `.env.example` and fill in your values. See `CLAUDE.md` for the full environment variable reference. Never commit `.env` -- it contains API tokens.
+Create a `.env` file with your credentials. See [docs/getting-started.md](docs/getting-started.md) for full setup instructions. Never commit `.env` — it contains API tokens.
