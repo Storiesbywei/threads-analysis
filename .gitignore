@@ -11,6 +11,7 @@ public/data/fireflies.json
 .DS_Store
 *.log
 
+logs/
 dist/
 .astro/
 certs/

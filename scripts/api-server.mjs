@@ -838,6 +838,131 @@ route('GET', '/api/ask/auto', async (req, res, query) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
+//  CLUSTERS & PALACE GRAPH
+// ═══════════════════════════════════════════════════════════════════════
+
+route('GET', '/api/clusters', async (req, res, query) => {
+  const model = query.model || 'all-minilm';
+  const result = await pool.query(`
+    SELECT cluster_id, name, description, size, avg_sentiment,
+           dominant_energy, dominant_intent, date_start, date_end,
+           centroid_x, centroid_y
+    FROM embedding_clusters WHERE model = $1 ORDER BY size DESC
+  `, [model]);
+  json(res, ok(result.rows, { model, count: result.rowCount }));
+});
+
+route('GET', '/api/clusters/:id/posts', async (req, res, query, params) => {
+  const model = query.model || 'all-minilm';
+  const limit = int(query.limit, 50);
+  const result = await pool.query(`
+    SELECT pc.post_id, pc.umap_x, pc.umap_y, pc.probability,
+           LEFT(p.text, 200) AS text, p.timestamp, p.sentiment, p.energy, p.intent
+    FROM post_clusters pc JOIN posts p ON p.id = pc.post_id
+    WHERE pc.model = $1 AND pc.cluster_id = $2
+    ORDER BY pc.probability DESC LIMIT $3
+  `, [model, parseInt(params.id), limit]);
+  json(res, ok(result.rows));
+});
+
+route('GET', '/api/clusters/overlap', async (req, res, query) => {
+  const modelA = query.model_a || 'all-minilm';
+  const modelB = query.model_b || 'bge-m3';
+  const minShared = int(query.min_shared, 5);
+  const result = await pool.query(`
+    SELECT a.name AS cluster_a, b.name AS cluster_b, COUNT(*) AS shared_posts
+    FROM post_clusters pa
+    JOIN post_clusters pb ON pa.post_id = pb.post_id
+    JOIN embedding_clusters a ON a.cluster_id = pa.cluster_id AND a.model = pa.model
+    JOIN embedding_clusters b ON b.cluster_id = pb.cluster_id AND b.model = pb.model
+    WHERE pa.model = $1 AND pb.model = $2
+      AND pa.cluster_id >= 0 AND pb.cluster_id >= 0
+    GROUP BY a.name, b.name HAVING COUNT(*) >= $3
+    ORDER BY COUNT(*) DESC LIMIT 100
+  `, [modelA, modelB, minShared]);
+  json(res, ok(result.rows, { model_a: modelA, model_b: modelB }));
+});
+
+route('GET', '/api/palace/topology', async (req, res, query) => {
+  const model = query.model || 'all-minilm';
+  const wings = await pool.query(`
+    SELECT n.node_id, n.label, n.metadata,
+           COUNT(e.target_id) AS room_count
+    FROM tp_nodes n
+    LEFT JOIN tp_edges e ON e.source_id = n.node_id AND e.relationship = 'contains'
+    WHERE n.node_type = 'wing' AND n.node_id LIKE 'wing:' || $1 || ':%'
+    GROUP BY n.node_id, n.label, n.metadata
+    ORDER BY (n.metadata->>'size')::int DESC NULLS LAST
+  `, [model]);
+  const xedges = await pool.query(`
+    SELECT e.source_id, e.target_id, e.relationship, ROUND(e.weight::numeric, 2) AS weight
+    FROM tp_edges e
+    WHERE e.relationship IN ('relates_to','contradicts','evolves_to')
+      AND e.source_id LIKE 'wing:' || $1 || ':%'
+    ORDER BY e.weight DESC LIMIT 50
+  `, [model]);
+  json(res, ok({
+    v: 1, model,
+    wings: wings.rows.map(r => ({
+      id: r.node_id, label: r.label, rooms: parseInt(r.room_count),
+      ...r.metadata,
+    })),
+    xedges: xedges.rows,
+  }));
+});
+
+route('GET', '/api/palace/wings/:wingId', async (req, res, query, params) => {
+  const wingId = params.wingId;
+  const info = await pool.query(
+    'SELECT node_id, label, metadata FROM tp_nodes WHERE node_id = $1', [wingId]
+  );
+  if (!info.rowCount) return json(res, fail('Wing not found', 404), 404);
+  const rooms = await pool.query(`
+    SELECT n.node_id, n.label, n.metadata,
+           COUNT(ce.target_id) AS drawer_count
+    FROM tp_nodes n
+    JOIN tp_edges e ON e.target_id = n.node_id AND e.source_id = $1 AND e.relationship = 'contains'
+    LEFT JOIN tp_edges ce ON ce.source_id = n.node_id AND ce.relationship = 'contains'
+    WHERE n.node_type = 'room'
+    GROUP BY n.node_id, n.label, n.metadata ORDER BY n.label
+  `, [wingId]);
+  const connected = await pool.query(`
+    SELECT t.label, e.relationship, ROUND(e.weight::numeric, 2) AS weight
+    FROM tp_edges e JOIN tp_nodes t ON t.node_id = e.target_id
+    WHERE e.source_id = $1 AND e.relationship != 'contains'
+    ORDER BY e.weight DESC
+  `, [wingId]);
+  json(res, ok({
+    ...info.rows[0], rooms: rooms.rows, connected: connected.rows,
+  }));
+});
+
+route('GET', '/api/palace/rooms/:roomId', async (req, res, query, params) => {
+  const limit = int(query.limit, 50);
+  const result = await pool.query(`
+    SELECT p.id, LEFT(p.text, 200) AS text, p.timestamp, p.sentiment, p.energy, p.intent,
+           ROUND(dr.relevance_score::numeric, 2) AS relevance
+    FROM tp_edges e
+    JOIN tp_drawer_refs dr ON dr.drawer_id = e.target_id
+    JOIN posts p ON p.id = dr.post_id
+    WHERE e.source_id = $1 AND e.relationship = 'contains'
+    ORDER BY dr.relevance_score DESC LIMIT $2
+  `, [params.roomId, limit]);
+  json(res, ok(result.rows));
+});
+
+route('GET', '/api/models', async (req, res) => {
+  const result = await pool.query(`
+    SELECT model, COUNT(*) AS clusters,
+           ROUND(AVG(size)::numeric, 0) AS avg_size,
+           ROUND(AVG(avg_sentiment)::numeric, 3) AS avg_sentiment,
+           SUM(size) AS total_posts
+    FROM embedding_clusters GROUP BY model ORDER BY model
+  `);
+  json(res, ok(result.rows));
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 //  OPENAPI SPEC
 // ═══════════════════════════════════════════════════════════════════════
 

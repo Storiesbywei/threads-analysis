@@ -97,5 +97,28 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
       FLASK_ENV: production
 
+  # ─── Monitoring: Grafana on :3002 ─────────────────────────
+  grafana:
+    image: grafana/grafana-oss:latest
+    restart: unless-stopped
+    profiles: [monitoring, full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: threads
+      GF_SERVER_HTTP_ADDR: "0.0.0.0"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-threads_local_dev}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+
 volumes:
   pgdata:
+  grafana-data:

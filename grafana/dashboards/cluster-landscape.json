@@ -1,0 +1,319 @@
+{
+  "id": null,
+  "uid": "cluster-landscape",
+  "title": "Cluster Landscape",
+  "tags": ["threads", "clusters", "embeddings"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": {
+    "from": "2024-01-01T00:00:00.000Z",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT DISTINCT model AS __value, model AS __text FROM embedding_clusters ORDER BY model",
+        "current": { "text": "all-minilm", "value": "all-minilm" },
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "label": "Model"
+      },
+      {
+        "name": "cluster",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT cluster_id AS __value, name || ' (' || size || ')' AS __text FROM embedding_clusters WHERE model = '${model}' ORDER BY size DESC",
+        "current": { "text": "0", "value": "0" },
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "label": "Cluster"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Clusters",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM embedding_clusters WHERE model = '${model}'",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Clustered Posts",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM post_clusters WHERE model = '${model}' AND cluster_id >= 0",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Noise Posts",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM post_clusters WHERE model = '${model}' AND cluster_id = -1",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Palace Wings",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM tp_nodes WHERE node_type = 'wing' AND node_id LIKE 'wing:' || '${model}' || ':%'",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Palace Rooms",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "yellow", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM tp_nodes WHERE node_type = 'room' AND node_id LIKE 'room:' || '${model}' || ':%'",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cross-Cluster Edges",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM tp_edges WHERE relationship IN ('relates_to','contradicts','evolves_to') AND source_id LIKE 'wing:' || '${model}' || ':%'",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Cluster Size Distribution",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Top 30 Clusters by Size",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name AS \"Cluster\", size AS \"Posts\" FROM embedding_clusters WHERE model = '${model}' ORDER BY size DESC LIMIT 30",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 8,
+      "type": "barchart",
+      "title": "Cluster Size Histogram",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT CASE WHEN size < 20 THEN '< 20' WHEN size < 50 THEN '20-49' WHEN size < 100 THEN '50-99' WHEN size < 200 THEN '100-199' ELSE '200+' END AS bucket, COUNT(*) AS clusters FROM embedding_clusters WHERE model = '${model}' GROUP BY 1 ORDER BY MIN(size)",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Emotional Landscape",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Cluster Sentiment Distribution",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name AS \"Cluster\", ROUND(avg_sentiment::numeric, 2) AS \"Sentiment\" FROM embedding_clusters WHERE model = '${model}' AND avg_sentiment IS NOT NULL ORDER BY avg_sentiment LIMIT 30",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 10,
+      "type": "piechart",
+      "title": "Energy Breakdown",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 15 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT dominant_energy AS energy, COUNT(*) AS count FROM embedding_clusters WHERE model = '${model}' AND dominant_energy IS NOT NULL GROUP BY dominant_energy ORDER BY count DESC",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "rowsToFields",
+        "options": {
+          "mappings": [
+            { "fieldName": "energy", "handlerKey": "field.name" },
+            { "fieldName": "count", "handlerKey": "field.value" }
+          ]
+        }
+      }]
+    },
+    {
+      "id": 11,
+      "type": "piechart",
+      "title": "Intent Breakdown",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 15 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT dominant_intent AS intent, COUNT(*) AS count FROM embedding_clusters WHERE model = '${model}' AND dominant_intent IS NOT NULL GROUP BY dominant_intent ORDER BY count DESC",
+        "refId": "A"
+      }],
+      "transformations": [{
+        "id": "rowsToFields",
+        "options": {
+          "mappings": [
+            { "fieldName": "intent", "handlerKey": "field.name" },
+            { "fieldName": "count", "handlerKey": "field.value" }
+          ]
+        }
+      }]
+    },
+    {
+      "id": 103,
+      "type": "row",
+      "title": "Selected Cluster Detail",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Cluster Description",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name AS \"Name\", description AS \"Description\", size AS \"Size\", ROUND(avg_sentiment::numeric, 3) AS \"Sentiment\", dominant_energy AS \"Energy\", dominant_intent AS \"Intent\", date_start AS \"From\", date_end AS \"To\" FROM embedding_clusters WHERE model = '${model}' AND cluster_id = ${cluster}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Cluster Timeline",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80
+          }
+        },
+        "overrides": []
+      },
+      "options": {},
+      "targets": [{
+        "format": "time_series",
+        "rawSql": "SELECT date_trunc('week', p.timestamp) AS time, COUNT(*) AS posts FROM post_clusters pc JOIN posts p ON p.id = pc.post_id WHERE pc.model = '${model}' AND pc.cluster_id = ${cluster} AND $__timeFilter(p.timestamp) GROUP BY 1 ORDER BY 1",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Cluster Posts",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p.text, 120) AS text, p.timestamp, p.sentiment, p.energy, ROUND(pc.probability::numeric, 2) AS probability FROM post_clusters pc JOIN posts p ON p.id = pc.post_id WHERE pc.model = '${model}' AND pc.cluster_id = ${cluster} ORDER BY pc.probability DESC LIMIT 25",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 104,
+      "type": "row",
+      "title": "Palace Connections",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Cross-Cluster Relationships",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {},
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT e1.label AS \"From Wing\", e2.label AS \"To Wing\", te.relationship AS \"Type\", ROUND(te.weight::numeric, 2) AS \"Weight\" FROM tp_edges te JOIN tp_nodes e1 ON e1.node_id = te.source_id JOIN tp_nodes e2 ON e2.node_id = te.target_id WHERE te.relationship IN ('relates_to','contradicts','evolves_to') AND te.source_id LIKE 'wing:' || '${model}' || ':%' ORDER BY te.weight DESC LIMIT 50",
+        "refId": "A"
+      }]
+    }
+  ]
+}

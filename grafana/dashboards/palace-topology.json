@@ -1,0 +1,405 @@
+{
+  "uid": "palace-topology",
+  "title": "Thread Palace",
+  "schemaVersion": 39,
+  "editable": true,
+  "timezone": "browser",
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT DISTINCT SPLIT_PART(node_id, ':', 2) AS __value, SPLIT_PART(node_id, ':', 2) AS __text FROM tp_nodes WHERE node_type = 'wing' GROUP BY 1 ORDER BY 1",
+        "current": { "text": "all-minilm", "value": "all-minilm" },
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0
+      },
+      {
+        "name": "wing",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT node_id AS __value, label || ' (' || COALESCE((metadata->>'size')::text, '?') || ' posts)' AS __text FROM tp_nodes WHERE node_type = 'wing' AND node_id LIKE 'wing:' || '${model}' || ':%' ORDER BY (metadata->>'size')::int DESC NULLS LAST",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0
+      },
+      {
+        "name": "room",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT n.node_id AS __value, n.label AS __text FROM tp_edges e JOIN tp_nodes n ON n.node_id = e.target_id WHERE e.source_id = '${wing}' AND e.relationship = 'contains' AND n.node_type = 'room' ORDER BY n.label",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Palace Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Wings",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_nodes WHERE node_type = 'wing'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Rooms",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_nodes WHERE node_type = 'room'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Drawers",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_drawer_refs",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Total Edges",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_edges",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Agent Memories",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_agent_memories",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "yellow" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Cross-Links",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_edges WHERE relationship <> 'contains'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Wing Navigator",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "All Wings",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT n.label AS \"Wing\", (n.metadata->>'size')::int AS \"Posts\", ROUND((n.metadata->>'avg_sentiment')::numeric, 2) AS \"Sentiment\", n.metadata->>'dominant_energy' AS \"Energy\", n.metadata->>'dominant_intent' AS \"Intent\", n.metadata->>'date_start' AS \"From\", n.metadata->>'date_end' AS \"To\", (SELECT COUNT(*) FROM tp_edges e WHERE e.source_id = n.node_id AND e.relationship = 'contains') AS \"Rooms\" FROM tp_nodes n WHERE n.node_type = 'wing' AND n.node_id LIKE 'wing:' || '${model}' || ':%' ORDER BY (n.metadata->>'size')::int DESC NULLS LAST",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "type": "row",
+      "title": "Selected Wing",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Wing Info",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT label AS \"Wing\", metadata->>'description' AS \"Description\", (metadata->>'size')::int AS \"Posts\", metadata->>'dominant_energy' AS \"Energy\" FROM tp_nodes WHERE node_id = '${wing}'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Rooms in Wing",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT r.label AS \"Quarter\", (r.metadata->>'post_count')::int AS \"Posts\" FROM tp_edges e JOIN tp_nodes r ON r.node_id = e.target_id WHERE e.source_id = '${wing}' AND e.relationship = 'contains' AND r.node_type = 'room' ORDER BY r.label",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Connected Wings",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT t.label AS \"Connected Wing\", e.relationship AS \"Relation\", ROUND(e.weight::numeric, 2) AS \"Weight\" FROM tp_edges e JOIN tp_nodes t ON t.node_id = e.target_id WHERE e.source_id = '${wing}' AND e.relationship <> 'contains' ORDER BY e.weight DESC",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "type": "row",
+      "title": "Room Drill-Down",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Room Post Count",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 28 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM tp_edges e JOIN tp_drawer_refs dr ON dr.drawer_id = e.target_id WHERE e.source_id = '${room}' AND e.relationship = 'contains'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 12,
+      "type": "gauge",
+      "title": "Room Avg Sentiment",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 28 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(AVG(p.sentiment)::numeric, 3) AS value FROM tp_edges e JOIN tp_drawer_refs dr ON dr.drawer_id = e.target_id JOIN posts p ON p.id = dr.post_id WHERE e.source_id = '${room}' AND e.relationship = 'contains' AND p.sentiment IS NOT NULL",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": -1,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": -0.2 },
+              { "color": "green", "value": 0.2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Room Posts",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 32 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT LEFT(p.text, 150) AS \"Text\", p.timestamp AS \"Date\", p.sentiment, p.energy, p.intent, ROUND(dr.relevance_score::numeric, 2) AS \"Relevance\" FROM tp_edges e JOIN tp_drawer_refs dr ON dr.drawer_id = e.target_id JOIN posts p ON p.id = dr.post_id WHERE e.source_id = '${room}' AND e.relationship = 'contains' ORDER BY dr.relevance_score DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    },
+    {
+      "type": "row",
+      "title": "Conversations in Cluster",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Top Conversations",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 43 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "targets": [
+        {
+          "rawSql": "SELECT LEFT(p.text, 120) AS \"Root Post\", COUNT(c.*) AS \"Replies\", COUNT(DISTINCT c.reply_username) AS \"Repliers\" FROM tp_drawer_refs dr JOIN posts p ON p.id = dr.post_id JOIN tp_edges e ON e.target_id = dr.drawer_id AND e.relationship = 'contains' JOIN tp_edges e2 ON e2.target_id = e.source_id AND e2.relationship = 'contains' LEFT JOIN conversations c ON c.root_post_id = p.id WHERE e2.source_id = '${wing}' GROUP BY p.id, p.text HAVING COUNT(c.*) > 0 ORDER BY COUNT(c.*) DESC LIMIT 20",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {}
+    }
+  ],
+  "time": { "from": "now-30d", "to": "now" },
+  "fiscalYearStartMonth": 0,
+  "liveNow": false,
+  "style": "dark",
+  "tags": ["palace", "topology", "threads"],
+  "annotations": { "list": [] },
+  "links": [],
+  "version": 1
+}

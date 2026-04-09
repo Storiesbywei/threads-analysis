@@ -1,0 +1,279 @@
+{
+  "id": null,
+  "uid": "model-comparison",
+  "title": "Embedding Model Arena",
+  "tags": ["threads", "embeddings"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "model_a",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT DISTINCT model AS __value, model AS __text FROM embedding_clusters ORDER BY model",
+        "current": { "text": "all-minilm", "value": "all-minilm" },
+        "refresh": 1,
+        "label": "Model A"
+      },
+      {
+        "name": "model_b",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT DISTINCT model AS __value, model AS __text FROM embedding_clusters ORDER BY model",
+        "current": { "text": "bge-m3", "value": "bge-m3" },
+        "refresh": 1,
+        "label": "Model B"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Model Stats Side-by-Side",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 1,
+      "title": "Model A Clusters",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM embedding_clusters WHERE model = '${model_a}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "purple", "mode": "fixed" }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Model A Avg Size",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(size)::numeric, 1) AS value FROM embedding_clusters WHERE model = '${model_a}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Model A Noise %",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE cluster_id = -1) / NULLIF(COUNT(*), 0), 1) AS value FROM post_clusters WHERE model = '${model_a}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "unit": "percent"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Model B Clusters",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM embedding_clusters WHERE model = '${model_b}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "purple", "mode": "fixed" }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Model B Avg Size",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(size)::numeric, 1) AS value FROM embedding_clusters WHERE model = '${model_b}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Model B Noise %",
+      "type": "stat",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE cluster_id = -1) / NULLIF(COUNT(*), 0), 1) AS value FROM post_clusters WHERE model = '${model_b}'",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "unit": "percent"
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Size Distribution Comparison",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+    {
+      "id": 7,
+      "title": "Model A — Top Clusters",
+      "type": "barchart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name AS \"Cluster\", size AS \"Posts\" FROM embedding_clusters WHERE model = '${model_a}' ORDER BY size DESC LIMIT 20",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 8,
+      "title": "Model B — Top Clusters",
+      "type": "barchart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name AS \"Cluster\", size AS \"Posts\" FROM embedding_clusters WHERE model = '${model_b}' ORDER BY size DESC LIMIT 20",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "row",
+      "title": "Sentiment Lens",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+    {
+      "id": 9,
+      "title": "Model A Sentiment",
+      "type": "barchart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name, ROUND(avg_sentiment::numeric, 2) AS sentiment FROM embedding_clusters WHERE model = '${model_a}' AND avg_sentiment IS NOT NULL ORDER BY avg_sentiment LIMIT 20",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 10,
+      "title": "Model B Sentiment",
+      "type": "barchart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT name, ROUND(avg_sentiment::numeric, 2) AS sentiment FROM embedding_clusters WHERE model = '${model_b}' AND avg_sentiment IS NOT NULL ORDER BY avg_sentiment LIMIT 20",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "row",
+      "title": "Cross-Model Agreement",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "title": "Post Overlap Matrix",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT a.name AS \"Model A Cluster\", b.name AS \"Model B Cluster\", COUNT(*) AS \"Shared Posts\" FROM post_clusters pa JOIN post_clusters pb ON pa.post_id = pb.post_id JOIN embedding_clusters a ON a.cluster_id = pa.cluster_id AND a.model = pa.model JOIN embedding_clusters b ON b.cluster_id = pb.cluster_id AND b.model = pb.model WHERE pa.model = '${model_a}' AND pb.model = '${model_b}' AND pa.cluster_id >= 0 AND pb.cluster_id >= 0 GROUP BY a.name, b.name HAVING COUNT(*) >= 5 ORDER BY COUNT(*) DESC LIMIT 40",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "row",
+      "title": "All Models Summary",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "collapsed": false
+    },
+    {
+      "id": 12,
+      "title": "Models Overview",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 35 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT model AS \"Model\", COUNT(*) AS \"Clusters\", ROUND(AVG(size)::numeric, 0) AS \"Avg Size\", ROUND(AVG(avg_sentiment)::numeric, 3) AS \"Avg Sentiment\", MIN(date_start) AS \"Earliest\", MAX(date_end) AS \"Latest\" FROM embedding_clusters GROUP BY model ORDER BY model",
+        "refId": "A"
+      }]
+    }
+  ]
+}

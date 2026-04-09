@@ -70,6 +70,7 @@ export async function upsertPost(post, client) {
       media_url = COALESCE(EXCLUDED.media_url, posts.media_url),
       thumbnail_url = COALESCE(EXCLUDED.thumbnail_url, posts.thumbnail_url),
       permalink = COALESCE(EXCLUDED.permalink, posts.permalink),
+      timestamp = EXCLUDED.timestamp,
       char_count = COALESCE(EXCLUDED.char_count, posts.char_count),
       word_count = COALESCE(EXCLUDED.word_count, posts.word_count),
       has_url = EXCLUDED.has_url,

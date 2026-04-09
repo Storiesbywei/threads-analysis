@@ -1,0 +1,430 @@
+{
+  "id": null,
+  "uid": "community",
+  "title": "Community & Social — Who Talks Back",
+  "tags": ["threads", "social", "community"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": {
+    "from": "2024-01-01",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "purple", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT COUNT(DISTINCT reply_username) AS \"Total Unique Repliers\" FROM conversations WHERE reply_username != 'maybe_foucault'",
+        "refId": "A"
+      }],
+      "title": "Total Unique Repliers",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS \"Total Conversations\" FROM conversations WHERE reply_username != 'maybe_foucault'",
+        "refId": "A"
+      }],
+      "title": "Total Conversations",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT ROUND(COUNT(*)::numeric / NULLIF(COUNT(DISTINCT root_post_id), 0), 1) AS \"Avg Replies Per Post\" FROM conversations WHERE reply_username != 'maybe_foucault'",
+        "refId": "A"
+      }],
+      "title": "Avg Replies Per Post",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value"
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT reply_username AS \"Most Active Replier\" FROM conversations WHERE reply_username IS NOT NULL AND reply_username <> 'maybe_foucault' GROUP BY reply_username ORDER BY COUNT(*) DESC LIMIT 1",
+        "refId": "A"
+      }],
+      "title": "Most Active Replier",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.7,
+        "groupWidth": 0.7,
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": { "mode": "single" },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT reply_username, COUNT(*) AS count FROM conversations WHERE reply_username IS NOT NULL AND reply_username != 'maybe_foucault' GROUP BY reply_username ORDER BY count DESC LIMIT 20",
+        "refId": "A"
+      }],
+      "title": "Top 20 Repliers",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "reply_username": "User",
+              "count": "Replies"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "custom": { "drawStyle": "bars", "fillOpacity": 30, "lineWidth": 2 }
+        }
+      },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "time_series",
+        "rawSql": "SELECT date_trunc('week', reply_timestamp) AS time, COUNT(*) AS replies FROM conversations WHERE reply_timestamp IS NOT NULL AND reply_username != 'maybe_foucault' GROUP BY 1 ORDER BY 1",
+        "refId": "A"
+      }],
+      "title": "Reply Activity Over Time (Weekly)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "reply_username" },
+            "properties": [{ "id": "displayName", "value": "User" }, { "id": "custom.width", "value": 180 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "total" },
+            "properties": [{ "id": "displayName", "value": "Total" }, { "id": "custom.width", "value": 80 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "last_30d" },
+            "properties": [{ "id": "displayName", "value": "Last 30d" }, { "id": "custom.width", "value": 90 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "last_90d" },
+            "properties": [{ "id": "displayName", "value": "Last 90d" }, { "id": "custom.width", "value": 90 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "first_reply" },
+            "properties": [{ "id": "displayName", "value": "First Reply" }, { "id": "custom.width", "value": 110 }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "last_reply" },
+            "properties": [{ "id": "displayName", "value": "Last Reply" }, { "id": "custom.width", "value": 110 }]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 14 },
+      "id": 7,
+      "options": {
+        "footer": { "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Total" }]
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT reply_username,\n  COUNT(*) AS total,\n  COUNT(*) FILTER (WHERE reply_timestamp >= NOW() - INTERVAL '30 days') AS last_30d,\n  COUNT(*) FILTER (WHERE reply_timestamp >= NOW() - INTERVAL '90 days') AS last_90d,\n  MIN(reply_timestamp)::date AS first_reply,\n  MAX(reply_timestamp)::date AS last_reply\nFROM conversations\nWHERE reply_username IS NOT NULL AND reply_username != 'maybe_foucault'\nGROUP BY reply_username\nORDER BY total DESC LIMIT 15",
+        "refId": "A"
+      }],
+      "title": "Inner Circle — Monthly Interaction Heatmap",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 8,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.7,
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT reply_username, ROUND(AVG(LENGTH(reply_text))) AS avg_reply_length FROM conversations WHERE reply_username IS NOT NULL AND reply_username != 'maybe_foucault' AND reply_text IS NOT NULL GROUP BY reply_username ORDER BY avg_reply_length DESC LIMIT 15",
+        "refId": "A"
+      }],
+      "title": "Avg Reply Length by User (chars)",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "reply_username": "User",
+              "avg_reply_length": "Avg Length"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 24 },
+      "id": 9,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right" },
+        "pieType": "pie",
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT t.tag, COUNT(c.*) AS reply_count\nFROM conversations c\nJOIN tags t ON t.post_id = c.root_post_id\nGROUP BY t.tag\nORDER BY reply_count DESC LIMIT 15",
+        "refId": "A"
+      }],
+      "title": "Topics That Generate Discussion",
+      "transformations": [
+        {
+          "id": "rowsToFields",
+          "options": {
+            "mappings": [
+              { "fieldName": "tag", "handlerKey": "field.name" },
+              { "fieldName": "reply_count", "handlerKey": "field.value" }
+            ]
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 24 },
+      "id": 10,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.7,
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "orientation": "vertical",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT \n  CASE \n    WHEN cnt = 1 THEN '1 reply'\n    WHEN cnt BETWEEN 2 AND 3 THEN '2-3 replies'\n    WHEN cnt BETWEEN 4 AND 5 THEN '4-5 replies'\n    ELSE '6+ replies'\n  END AS depth,\n  COUNT(*) AS posts\nFROM (SELECT root_post_id, COUNT(*) AS cnt FROM conversations GROUP BY root_post_id) sub\nGROUP BY 1\nORDER BY 1",
+        "refId": "A"
+      }],
+      "title": "Conversation Depth",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "depth": "Depth",
+              "posts": "Posts"
+            }
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "time" },
+            "properties": [
+              { "id": "displayName", "value": "Time" },
+              { "id": "custom.width", "value": 160 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "who" },
+            "properties": [
+              { "id": "displayName", "value": "Replier" },
+              { "id": "custom.width", "value": 140 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "reply" },
+            "properties": [
+              { "id": "displayName", "value": "Reply" },
+              { "id": "custom.width", "value": 400 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "original_post" },
+            "properties": [
+              { "id": "displayName", "value": "Original Post" }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 32 },
+      "id": 11,
+      "options": {
+        "footer": { "show": false },
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Time" }]
+      },
+      "targets": [{
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "format": "table",
+        "rawSql": "SELECT c.reply_timestamp AS time, c.reply_username AS who, LEFT(c.reply_text, 150) AS reply, LEFT(p.text, 100) AS original_post\nFROM conversations c\nJOIN posts p ON p.id = c.root_post_id\nORDER BY c.reply_timestamp DESC\nLIMIT 20",
+        "refId": "A"
+      }],
+      "title": "Latest Conversations",
+      "type": "table"
+    }
+  ]
+}

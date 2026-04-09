@@ -1,0 +1,666 @@
+{
+  "id": null,
+  "uid": "content-performance",
+  "title": "Content & Performance \u2014 What Hits",
+  "tags": [
+    "threads",
+    "performance",
+    "content"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": {
+    "from": "2024-01-01",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "title": "Viral Stats",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT MAX(views) AS \"Most Viewed\" FROM metrics_latest",
+          "refId": "A"
+        }
+      ],
+      "title": "Most Viewed Post",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "red",
+            "mode": "fixed"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT MAX(likes) AS \"Most Liked\" FROM metrics_latest",
+          "refId": "A"
+        }
+      ],
+      "title": "Most Liked Post",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "green",
+            "mode": "fixed"
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT ROUND(AVG(likes + replies + reposts)::numeric / NULLIF(AVG(views), 0) * 100, 2) AS \"Engagement Rate %\" FROM metrics_latest",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Engagement Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "orange",
+            "mode": "fixed"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"Posts Over 1K Views\" FROM metrics_latest WHERE views > 1000",
+          "refId": "A"
+        }
+      ],
+      "title": "Posts Over 1K Views",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT SUM(reposts) AS \"Total Reposts\" FROM metrics_latest",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Reposts",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "yellow",
+            "mode": "fixed"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT SUM(quotes) AS \"Total Quotes\" FROM metrics_latest",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Quotes",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 101,
+      "title": "Performance Charts",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 7,
+      "options": {
+        "xTickLabelRotation": -30,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT\n  CASE\n    WHEN views < 100 THEN '0-100'\n    WHEN views < 500 THEN '100-500'\n    WHEN views < 1000 THEN '500-1K'\n    WHEN views < 5000 THEN '1K-5K'\n    WHEN views < 10000 THEN '5K-10K'\n    WHEN views < 50000 THEN '10K-50K'\n    WHEN views < 100000 THEN '50K-100K'\n    ELSE '100K+'\n  END AS range,\n  COUNT(*) AS posts\nFROM metrics_latest WHERE views > 0\nGROUP BY 1\nORDER BY MIN(views)",
+          "refId": "A"
+        }
+      ],
+      "title": "Views Distribution",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 8,
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT LPAD(EXTRACT(HOUR FROM p.timestamp)::text, 2, '0') || ':00' AS hour,\n  ROUND(AVG(m.views)) AS avg_views,\n  ROUND(AVG(m.likes), 1) AS avg_likes\nFROM posts p JOIN metrics_latest m ON m.post_id = p.id\nGROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Engagement by Hour",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 102,
+      "title": "Content Calendar",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 17
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('day', timestamp) AS time, COUNT(*) AS posts\nFROM posts WHERE $__timeFilter(timestamp) GROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Posting Streak Calendar",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "id": 10,
+      "options": {
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT CASE EXTRACT(DOW FROM p.timestamp)\n  WHEN 0 THEN 'Sun' WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue'\n  WHEN 3 THEN 'Wed' WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat'\n  END AS day,\n  COUNT(*) AS posts,\n  ROUND(AVG(m.views)) AS avg_views\nFROM posts p LEFT JOIN metrics_latest m ON m.post_id = p.id\nGROUP BY 1, EXTRACT(DOW FROM p.timestamp)\nORDER BY EXTRACT(DOW FROM p.timestamp)",
+          "refId": "A"
+        }
+      ],
+      "title": "Day of Week Performance",
+      "type": "barchart"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "id": 103,
+      "title": "Tag Performance",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_views"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_likes"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 11,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "avg_views"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT t.tag,\n  COUNT(*) AS posts,\n  ROUND(AVG(m.views)) AS avg_views,\n  ROUND(AVG(m.likes), 1) AS avg_likes,\n  ROUND(AVG(m.replies), 1) AS avg_replies,\n  ROUND(AVG(s.surprise)::numeric, 2) AS avg_surprise\nFROM tags t\nLEFT JOIN metrics_latest m ON m.post_id = t.post_id\nLEFT JOIN surprise_scores s ON s.post_id = t.post_id\nGROUP BY t.tag\nHAVING COUNT(*) >= 5\nORDER BY avg_views DESC NULLS LAST\nLIMIT 25",
+          "refId": "A"
+        }
+      ],
+      "title": "Tag Engagement Matrix",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      },
+      "id": 104,
+      "title": "Top Posts",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "threads-pg"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "views"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "post"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 500
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 12,
+      "options": {
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "views"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "threads-pg"
+          },
+          "format": "table",
+          "rawSql": "SELECT p.timestamp::date AS date, LEFT(p.text, 200) AS post,\n  m.views, m.likes, m.replies, m.reposts, m.quotes,\n  p.sentiment, p.energy\nFROM posts p JOIN metrics_latest m ON m.post_id = p.id\nORDER BY m.views DESC NULLS LAST LIMIT 15",
+          "refId": "A"
+        }
+      ],
+      "title": "Top 15 Posts All Time",
+      "type": "table"
+    }
+  ]
+}

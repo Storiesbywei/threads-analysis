@@ -1423,6 +1423,140 @@ def _generate_llms_txt(mini=False):
     return "".join(lines)
 
 
+# ─── Clusters & Palace Graph ─────────────────────────────────────
+
+
+@app.get("/clusters")
+def clusters_list():
+    """List all HDBSCAN clusters for a model."""
+    model = request.args.get("model", "all-minilm")
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT cluster_id, name, description, size, avg_sentiment,
+                      dominant_energy, dominant_intent, date_start, date_end,
+                      centroid_x, centroid_y
+               FROM embedding_clusters WHERE model = %s ORDER BY size DESC""",
+            (model,),
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return {"ok": True, "data": rows, "model": model, "count": len(rows)}
+    finally:
+        put_conn(conn)
+
+
+@app.get("/clusters/summary")
+def clusters_summary():
+    """Compact cluster summary for iOS Shortcuts."""
+    model = request.args.get("model", "all-minilm")
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT name, size, avg_sentiment, dominant_energy
+               FROM embedding_clusters WHERE model = %s
+               ORDER BY size DESC LIMIT 5""",
+            (model,),
+        )
+        top = [{"name": r[0], "size": r[1], "sentiment": r[2], "energy": r[3]} for r in cur.fetchall()]
+        cur.execute(
+            "SELECT COUNT(*), SUM(size) FROM embedding_clusters WHERE model = %s",
+            (model,),
+        )
+        total = cur.fetchone()
+        cur.close()
+        return {
+            "ok": True,
+            "model": model,
+            "total_clusters": total[0],
+            "total_posts": total[1],
+            "top_5": top,
+        }
+    finally:
+        put_conn(conn)
+
+
+@app.get("/palace/navigate")
+def palace_navigate():
+    """Semantic search through palace graph — finds relevant wing/room."""
+    query = request.args.get("query", request.args.get("q", ""))
+    model = request.args.get("model", "all-minilm")
+    limit = min(int(request.args.get("limit", 10)), 50)
+    if not query:
+        return {"ok": False, "error": "query parameter required"}, 400
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        # Search posts by text similarity within clustered posts
+        cur.execute(
+            """SELECT p.id, LEFT(p.text, 200) AS text, p.timestamp,
+                      p.sentiment, p.energy, p.intent,
+                      pc.cluster_id, ec.name AS cluster_name
+               FROM posts p
+               JOIN post_clusters pc ON pc.post_id = p.id AND pc.model = %s
+               LEFT JOIN embedding_clusters ec ON ec.cluster_id = pc.cluster_id AND ec.model = pc.model
+               WHERE p.text ILIKE %s AND pc.cluster_id >= 0
+               ORDER BY p.timestamp DESC LIMIT %s""",
+            (model, f"%{query}%", limit),
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return {"ok": True, "query": query, "data": rows, "count": len(rows)}
+    finally:
+        put_conn(conn)
+
+
+@app.get("/palace/edges")
+def palace_edges():
+    """List cross-cluster edges by type."""
+    rel = request.args.get("type", "relates_to")
+    limit = min(int(request.args.get("limit", 30)), 100)
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT e1.label AS source, e2.label AS target,
+                      te.relationship, ROUND(te.weight::numeric, 2) AS weight
+               FROM tp_edges te
+               JOIN tp_nodes e1 ON e1.node_id = te.source_id
+               JOIN tp_nodes e2 ON e2.node_id = te.target_id
+               WHERE te.relationship = %s
+               ORDER BY te.weight DESC LIMIT %s""",
+            (rel, limit),
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return {"ok": True, "type": rel, "data": rows}
+    finally:
+        put_conn(conn)
+
+
+@app.get("/models")
+def models_list():
+    """List available embedding models with cluster stats."""
+    conn = get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT model, COUNT(*) AS clusters,
+                      ROUND(AVG(size)::numeric, 0) AS avg_size,
+                      ROUND(AVG(avg_sentiment)::numeric, 3) AS avg_sentiment,
+                      SUM(size) AS total_posts
+               FROM embedding_clusters GROUP BY model ORDER BY model"""
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return {"ok": True, "data": rows}
+    finally:
+        put_conn(conn)
+
+
 @app.get("/llms.txt")
 def llms_txt():
     """Full LLM instruction file — auto-generated from live routes."""

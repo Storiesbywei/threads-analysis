@@ -1,0 +1,207 @@
+{
+  "id": null,
+  "uid": "haleigh-interactions",
+  "title": "Relationship Explorer",
+  "tags": ["threads", "interactions", "people"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "5m",
+  "time": {
+    "from": "2024-01-01T00:00:00.000Z",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "username",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT DISTINCT to_username AS __value, to_username || ' (' || COUNT(*) || ')' AS __text FROM interactions GROUP BY to_username ORDER BY COUNT(*) DESC LIMIT 50",
+        "current": { "text": "maybe_foucault", "value": "maybe_foucault" },
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "label": "Person"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" } } },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM posts WHERE text ILIKE '%' || '${username}' || '%'",
+        "refId": "A"
+      }],
+      "title": "Wei Mentions @${username}",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" }, "unit": "dateTimeAsIso" } },
+      "gridPos": { "h": 4, "w": 5, "x": 4, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT EXTRACT(EPOCH FROM MIN(timestamp)) * 1000 AS value FROM posts WHERE text ILIKE '%' || '${username}' || '%'",
+        "refId": "A"
+      }],
+      "title": "First Mention",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } },
+      "gridPos": { "h": 4, "w": 4, "x": 9, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(*) AS value FROM conversations WHERE reply_username = '${username}'",
+        "refId": "A"
+      }],
+      "title": "Their Replies to Wei",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } } },
+      "gridPos": { "h": 4, "w": 4, "x": 13, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COUNT(DISTINCT interaction_type) AS value FROM interactions WHERE to_username = '${username}'",
+        "refId": "A"
+      }],
+      "title": "Interaction Types",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "min": -1, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0 }, { "color": "green", "value": 0.3 }] } } },
+      "gridPos": { "h": 4, "w": 3, "x": 17, "y": 0 },
+      "id": 5,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sentiment)::numeric, 3) AS value FROM posts WHERE text ILIKE '%' || '${username}' || '%' AND sentiment IS NOT NULL",
+        "refId": "A"
+      }],
+      "title": "Avg Sentiment",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }, "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 2, "spanNulls": false } } },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "right" }, "tooltip": { "mode": "single" } },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('month', timestamp) AS time, COUNT(*) AS \"wei mentions\" FROM posts WHERE text ILIKE '%' || '${username}' || '%' AND $__timeFilter(timestamp) GROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        },
+        {
+          "format": "time_series",
+          "rawSql": "SELECT date_trunc('month', reply_timestamp) AS time, COUNT(*) AS \"their replies\" FROM conversations WHERE reply_username = '${username}' AND $__timeFilter(reply_timestamp) GROUP BY 1 ORDER BY 1",
+          "refId": "B"
+        }
+      ],
+      "title": "Interaction Timeline — @${username}",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "xTickLabelRotation": -45 },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT interaction_type, COUNT(*) AS count FROM interactions WHERE to_username = '${username}' GROUP BY interaction_type ORDER BY count DESC",
+        "refId": "A"
+      }],
+      "title": "Interaction Type Breakdown",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "id": 8,
+      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT energy, COUNT(*) AS count FROM posts WHERE text ILIKE '%' || '${username}' || '%' AND energy IS NOT NULL GROUP BY energy ORDER BY count DESC",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "energy", "handlerKey": "field.name" }, { "fieldName": "count", "handlerKey": "field.value" }] } }],
+      "title": "Energy When Mentioning @${username}",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "id": 9,
+      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT intent, COUNT(*) AS count FROM posts WHERE text ILIKE '%' || '${username}' || '%' AND intent IS NOT NULL GROUP BY intent ORDER BY count DESC",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "rowsToFields", "options": { "mappings": [{ "fieldName": "intent", "handlerKey": "field.name" }, { "fieldName": "count", "handlerKey": "field.value" }] } }],
+      "title": "Intent When Mentioning @${username}",
+      "type": "piechart"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "time" }, "properties": [{ "id": "custom.width", "value": 180 }, { "id": "unit", "value": "dateTimeAsIso" }] },
+          { "matcher": { "id": "byName", "options": "who" }, "properties": [{ "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "text" }, "properties": [{ "id": "custom.width", "value": 700 }] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 20 },
+      "id": 10,
+      "options": { "cellHeight": "sm", "footer": { "enablePagination": true }, "showHeader": true, "sortBy": [{ "desc": false, "displayName": "time" }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT timestamp AS time, 'wei' AS who, text FROM posts WHERE text ILIKE '%' || '${username}' || '%' UNION ALL SELECT reply_timestamp AS time, reply_username AS who, reply_text AS text FROM conversations WHERE reply_username = '${username}' ORDER BY time ASC",
+        "refId": "A"
+      }],
+      "title": "Full Conversation — Wei & @${username}",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "time" }, "properties": [{ "id": "custom.width", "value": 180 }, { "id": "unit", "value": "dateTimeAsIso" }] },
+          { "matcher": { "id": "byName", "options": "text" }, "properties": [{ "id": "custom.width", "value": 750 }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 32 },
+      "id": 11,
+      "options": { "cellHeight": "sm", "footer": { "enablePagination": false }, "showHeader": true, "sortBy": [{ "desc": true, "displayName": "time" }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT reply_timestamp AS time, reply_text AS text FROM conversations WHERE reply_username = '${username}' ORDER BY reply_timestamp DESC LIMIT 15",
+        "refId": "A"
+      }],
+      "title": "Latest Replies from @${username}",
+      "type": "table"
+    }
+  ]
+}
