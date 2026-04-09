@@ -382,7 +382,7 @@ async function testGrafana() {
   grafanaOk ? ok('Grafana running', ':3002') : bad('Grafana running');
 
   if (grafanaOk) {
-    const dashboards = ['threads-analysis', 'haleigh-interactions', 'community', 'content-performance', 'personal-analytics'];
+    const dashboards = ['threads-analysis', 'relationship-explorer', 'community', 'content-performance', 'personal-analytics'];
     for (const uid of dashboards) {
       try {
         const res = await fetch(`http://100.71.141.45:3002/api/dashboards/uid/${uid}`);
