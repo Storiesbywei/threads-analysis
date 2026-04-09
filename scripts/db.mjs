@@ -92,7 +92,7 @@ export async function upsertPost(post, client) {
     isReply,
     isRepost,
     variety,
-    post.username || 'maybe_foucault',
+    post.username || process.env.THREADS_USERNAME || null,
     post.owner?.id || null,
     charCount,
     wordCount,

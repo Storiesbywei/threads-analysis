@@ -339,7 +339,7 @@ Respond with ONLY this JSON (no explanation):
             for p in posts[:8]
         )
 
-        prompt = f"""You are analyzing social media posts by @maybe_foucault (Wei).
+        prompt = f"""You are analyzing social media posts by the account owner.
 
 Question: {query}
 

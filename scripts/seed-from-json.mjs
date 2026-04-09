@@ -19,8 +19,8 @@ const DATABASE_URL =
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
 const BATCH = 1000;
-const USER_ID = '25703740162660740';
-const USERNAME = 'maybe_foucault';
+const USER_ID = process.env.THREADS_USER_ID || '';
+const USERNAME = process.env.THREADS_USERNAME || '';
 
 // Date range: July 2024 – Feb 2026
 const START = new Date('2024-07-29T00:00:00Z').getTime();

@@ -106,7 +106,7 @@ for cid, current_name, size in clusters:
 
     sample_str = "\n---\n".join(sample_texts)
 
-    prompt = f"""These are 8 representative posts from a cluster of {size} social media posts by @maybe_foucault.
+    prompt = f"""These are 8 representative posts from a cluster of {size} social media posts by the account owner.
 The cluster has avg sentiment {sentiment:.2f}, dominant energy "{energy}", dominant intent "{intent}".
 
 Posts:

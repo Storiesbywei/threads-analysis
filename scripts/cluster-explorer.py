@@ -160,7 +160,7 @@ for cluster_id in range(n_clusters):
     date_end = cluster_dates[-1].strftime('%Y-%m-%d') if cluster_dates else 'unknown'
 
     # Ask Gemma to name it
-    prompt = f"""These are 8 representative posts from a cluster of {cluster_size} social media posts by @maybe_foucault.
+    prompt = f"""These are 8 representative posts from a cluster of {cluster_size} social media posts by the account owner.
 Give this cluster:
 1. A short name (2-5 words, like a topic label)
 2. A one-sentence description of what connects these posts

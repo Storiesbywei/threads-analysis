@@ -303,6 +303,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ─── SEED THE USER ────────────────────────────────────────
-
-INSERT INTO users (id, username) VALUES ('25703740162660740', 'maybe_foucault')
-ON CONFLICT DO NOTHING;
+-- User is seeded by the sync worker on first run using THREADS_USER_ID env var
