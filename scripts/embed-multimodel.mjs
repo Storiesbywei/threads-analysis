@@ -76,14 +76,20 @@ async function embedModel(modelInfo) {
   if (total === 0) { console.log('  Already done!'); return; }
 
   let embedded = 0, errors = 0;
+  const failedIds = new Set();
   const startTime = Date.now();
 
   while (true) {
+    const excludeClause = failedIds.size > 0
+      ? ` AND id NOT IN (${[...failedIds].map((_, i) => `$${i + 2}`).join(',')})`
+      : '';
+    const params = [BATCH_SIZE, ...(failedIds.size > 0 ? [...failedIds] : [])];
+
     const batch = await pool.query(`
       SELECT id, ${textColumn} as text FROM ${TABLE}
-      WHERE ${textColumn} IS NOT NULL AND LENGTH(${textColumn}) > 0 AND ${column} IS NULL
+      WHERE ${textColumn} IS NOT NULL AND LENGTH(${textColumn}) > 0 AND ${column} IS NULL${excludeClause}
       LIMIT $1
-    `, [BATCH_SIZE]);
+    `, params);
 
     if (batch.rows.length === 0) break;
 
@@ -96,14 +102,19 @@ async function embedModel(modelInfo) {
           embedded++;
         } catch (err) {
           errors++;
+          failedIds.add(row.id);
         }
       }));
     }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    const rate = (embedded / elapsed).toFixed(1);
+    const rate = (embedded / (elapsed || 1)).toFixed(1);
     console.log(`  ${embedded}/${total} (${errors} errors, ${elapsed}s, ${rate}/s)`);
     await new Promise(r => setTimeout(r, 100));
+  }
+
+  if (failedIds.size > 0) {
+    console.log(`  Skipped ${failedIds.size} permanently failed rows`);
   }
 
   const elapsed = Math.round((Date.now() - startTime) / 1000);
