@@ -26,7 +26,7 @@ import numpy as np
 
 DB_URL = os.environ.get('DATABASE_URL', 'postgres://threads:threads_local_dev@localhost:5433/threads')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-GEMMA_MODEL = 'gemma4:e4b'
+GEMMA_MODEL = os.environ.get('GEMMA_MODEL', 'qwen3:14b')
 EMBED_MODEL = 'all-minilm'
 
 # Parse args
@@ -273,7 +273,7 @@ Respond with ONLY this JSON (no explanation):
             'all-minilm': 'embedding_minilm',
             'nomic': 'embedding',
             'bge-m3': 'embedding_bge_m3',
-            'mxbai': 'embedding_mxbai',
+            'mxbai': 'embedding_bge_m3',
         }.get(MODEL, 'embedding_minilm')
 
         try:

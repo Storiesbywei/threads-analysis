@@ -42,11 +42,10 @@ cp .env.example .env
 # 3. Start everything
 docker compose --profile full up -d
 
-# 4. Pull your data
+# 4. Pull your data and run the full pipeline
 npm run sync              # Pull posts from your Threads account
-npm run db:seed           # Seed Postgres
-npm run enrich            # Compute sentiment, energy, intent
 npm run sync:metrics      # Backfill engagement metrics
+npm run pipeline          # Enrich → Embed → Cluster → Palace → Name → Sentiment
 ```
 
 Open **http://localhost:3002** for Grafana dashboards.
@@ -55,15 +54,16 @@ See **[docs/getting-started.md](docs/getting-started.md)** for the full setup gu
 
 ## Docker Services
 
-| Service    | Image                    | Port | Description                      |
-|------------|--------------------------|------|----------------------------------|
-| postgres   | pgvector/pgvector:pg17   | 5433 | Postgres + pgvector              |
-| sync       | Node 22 Alpine           | --   | Auto-sync every 30 min           |
-| api        | Node 22 Alpine           | 4322 | REST API, RAG search, Gemma 4    |
-| flask-api  | Python 3.12-slim         | 4323 | iOS Shortcuts, Swagger UI        |
-| grafana    | Grafana OSS              | 3002 | 8 dashboards, auto-provisioned   |
+| Service    | Image                    | Port | Description                         |
+|------------|--------------------------|------|-------------------------------------|
+| postgres   | pgvector/pgvector:pg17   | 5433 | Postgres + pgvector                 |
+| sync       | Node 22 Alpine           | --   | Auto-sync every 30 min              |
+| pipeline   | Node 22 Alpine           | --   | Full pipeline every 24h (configurable) |
+| api        | Node 22 Alpine           | 4322 | REST API, RAG search, Gemma 4       |
+| flask-api  | Python 3.12-slim         | 4323 | iOS Shortcuts, Swagger UI           |
+| grafana    | Grafana OSS              | 3002 | 8 dashboards, auto-provisioned      |
 
-Profiles: `data` (postgres+sync), `api`, `full` (everything).
+Profiles: `data` (postgres+sync), `api`, `pipeline`, `full` (everything).
 
 ## Grafana Dashboards
 
@@ -131,7 +131,7 @@ python3 scripts/palace/rename_clusters.py        # Gemma 4 names clusters
 The palace graph is a hierarchical index over your HDBSCAN clusters, adapted from the [babel-palace](https://github.com/Storiesbywei/babel-palace) architecture. Gemma 4 routes through the hierarchy locally (~1,125 tokens per traversal, invisible to the caller).
 
 ```bash
-ollama pull gemma4:e4b
+ollama pull qwen3:14b
 python3 scripts/palace/navigate.py --interactive
 python3 scripts/palace/navigate.py "what do I post about late at night"
 ```
@@ -148,18 +148,63 @@ npm run haiku:loop    # Run 2-4 random times per day
 ## Data Pipeline
 
 ```
-Threads API -> sync-worker -> Postgres
-                                 |
-               +-----------------+-----------------+
-               |                 |                 |
-        enrich-posts.mjs   embed-posts.mjs   cluster-explorer.py
-        (sentiment,        (9 embedding      (HDBSCAN + UMAP
-         energy, intent)    models)           + Gemma 4 naming)
-               |                 |                 |
-               v                 v                 v
-        enrichment cols    pgvector cols     embedding_clusters
-                                            post_clusters
-                                            tp_nodes / tp_edges
+Threads API -> sync-worker (30min) -> Postgres
+                                         |
+                                   pipeline.mjs
+                                   (automated, 6 stages)
+                                         |
+         +----------+----------+---------+---------+---------+
+         |          |          |         |         |         |
+     1.Enrich   2.Embed    3.Cluster  4.Palace  5.Name   6.Sentiment
+     tags,      9 models   HDBSCAN    graph     Gemma 4  Gemma 4
+     energy     pgvector   + UMAP     topology  labels   re-score
+         |          |          |         |         |         |
+         +----------+----------+---------+---------+---------+
+                                         |
+                                      Grafana
+                                    (8 dashboards)
+```
+
+### Running the Pipeline
+
+```bash
+# Full pipeline (all 6 stages with validation between each)
+npm run pipeline
+
+# Dry run (preview what would execute)
+npm run pipeline:dry-run
+
+# Validate current state without running anything
+npm run pipeline:validate
+
+# Start from a specific stage (e.g., skip enrich+embed)
+node scripts/pipeline.mjs --stage=3
+
+# Skip specific stages (e.g., skip embed and sentiment)
+node scripts/pipeline.mjs --skip=2,6
+```
+
+### Pipeline Stages
+
+| # | Stage | Script | Requires Ollama | Description |
+|---|-------|--------|-----------------|-------------|
+| 1 | Enrich | `enrich-posts.mjs` | No | Tags, sentiment (heuristic), energy, intent |
+| 2 | Embed | `embed-multimodel.mjs` | Yes (9 models) | 9 embedding models on posts + conversations |
+| 3 | Cluster | `cluster-explorer.py` | Yes (Gemma 4) | HDBSCAN clustering + UMAP visualization |
+| 4 | Palace Sync | `palace/sync_clusters.py` | No | Convert clusters to navigable graph topology |
+| 5 | Naming | `palace/rename_clusters.py` | Yes (Gemma 4) | Gemma names each cluster from representative posts |
+| 6 | Sentiment | `enrich-sentiment-llm.mjs` | Yes (Gemma 4) | Re-score sentiment with tone/sarcasm awareness |
+
+Each stage runs validation checks before proceeding. Logs go to `output/pipeline-*.log`.
+
+### Automated Pipeline (Docker)
+
+```bash
+# Start everything including the pipeline runner (runs every 24h)
+docker compose --profile full up -d
+
+# Or customize the interval
+PIPELINE_INTERVAL_HOURS=12 docker compose --profile full up -d
 ```
 
 ## iOS Shortcuts
@@ -184,7 +229,7 @@ All endpoints return JSON. No authentication required (designed for local/Tailsc
 - **Dashboards**: Grafana OSS (auto-provisioned)
 - **APIs**: Node HTTP (`:4322`), Flask + flask-openapi3 (`:4323`)
 - **Infra**: Docker Compose, Tailscale
-- **Testing**: Vitest, pipeline-audit.mjs (57 tests)
+- **Testing**: Vitest, pipeline-validate.mjs (39 checks), pipeline-audit.mjs (57 tests)
 
 ## Configuration
 

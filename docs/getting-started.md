@@ -113,9 +113,9 @@ python3 scripts/palace/sync_clusters.py
 python3 scripts/palace/rename_clusters.py
 ```
 
-For the Gemma 4 AI navigator:
+For the AI navigator:
 ```bash
-ollama pull gemma4:e4b
+ollama pull qwen3:14b
 python3 scripts/palace/navigate.py --interactive
 ```
 

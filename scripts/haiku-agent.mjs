@@ -37,7 +37,7 @@ const DATABASE_URL = process.env.DATABASE_URL || 'postgres://threads:threads_loc
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const FLASK_URL = process.env.FLASK_URL || 'http://localhost:4323';
 const ALERT_PHONE = process.env.ALERT_PHONE;
-const HAIKU_MODEL = process.env.HAIKU_MODEL || 'gemma4:e4b';
+const HAIKU_MODEL = process.env.HAIKU_MODEL || 'qwen3:14b';
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
 

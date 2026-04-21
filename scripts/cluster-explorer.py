@@ -24,7 +24,7 @@ import numpy as np
 # --- Config ---
 DB_URL = os.environ.get('DATABASE_URL', 'postgres://threads:threads_local_dev@localhost:5433/threads')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-GEMMA_MODEL = 'gemma4:e4b'
+GEMMA_MODEL = os.environ.get('GEMMA_MODEL', 'qwen3:14b')
 
 # Parse args
 args = {}
@@ -37,7 +37,7 @@ EMBEDDING_COL = {
     'all-minilm': 'embedding_minilm',
     'nomic': 'embedding',
     'bge-m3': 'embedding_bge_m3',
-    'mxbai': 'embedding_mxbai',
+    'mxbai': 'embedding_bge_m3',
 }.get(args.get('model', 'all-minilm'), 'embedding_minilm')
 
 MIN_CLUSTER_SIZE = int(args.get('min-cluster', '15'))
@@ -282,7 +282,7 @@ print(f"NOISE: {n_noise} posts ({n_noise/len(labels)*100:.1f}%)")
 print(f"{'=' * 40}")
 for info in sorted(cluster_info, key=lambda x: x['size'], reverse=True)[:20]:
     print(f"  [{info['cluster_id']:2d}] {info['size']:5d} posts  {info['name']}")
-print(f"\nRun again with different models: --model=bge-m3, --model=mxbai, --model=nomic")
+print(f"\nRun again with different models: --model=bge-m3, --model=nomic")
 
 cur.close()
 conn.close()

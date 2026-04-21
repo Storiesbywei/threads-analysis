@@ -103,14 +103,14 @@ async function ollamaEmbed(text) {
   const res = await fetch(`${OLLAMA_URL}/api/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+    body: JSON.stringify({ model: 'nomic-embed-text-v2-moe', prompt: text }),
   });
   if (!res.ok) throw new Error(`Ollama embed error: ${res.status}`);
   const j = await res.json();
   return j.embedding;
 }
 
-async function ollamaGenerate(prompt, system, model = 'gemma4:e4b') {
+async function ollamaGenerate(prompt, system, model = process.env.RAG_MODEL || 'qwen3:14b') {
   const res = await fetch(`${OLLAMA_URL}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -707,7 +707,7 @@ function formatSources(posts) {
   }));
 }
 
-async function handleAsk(question, model = 'gemma4:e4b') {
+async function handleAsk(question, model = process.env.RAG_MODEL || 'qwen3:14b') {
   if (!question) throw new Error('question is required');
 
   const t0 = Date.now();
@@ -762,8 +762,8 @@ async function handleAskAuto(question) {
   }
   if (!answer) {
     const userPrompt = `Question: ${question}\n\nRelevant posts:\n${contextBlock}`;
-    answer = await ollamaGenerate(userPrompt, RAG_SYSTEM_PROMPT, 'gemma4:e4b');
-    backend = 'gemma4:e4b';
+    answer = await ollamaGenerate(userPrompt, RAG_SYSTEM_PROMPT);
+    backend = process.env.RAG_MODEL || 'qwen3:14b';
   }
 
   return {
@@ -777,7 +777,7 @@ async function handleAskAuto(question) {
 route('POST', '/api/ask', async (req, res) => {
   try {
     const body = await readBody(req);
-    const model = body.model === 'large' ? 'gemma4:26b' : 'gemma4:e4b';
+    const model = body.model === 'large' ? (process.env.RAG_MODEL_LARGE || 'qwen3:14b') : (process.env.RAG_MODEL || 'qwen3:14b');
     const result = await handleAsk(body.question, model);
     json(res, ok(result));
   } catch (err) {
@@ -787,7 +787,7 @@ route('POST', '/api/ask', async (req, res) => {
 
 route('GET', '/api/ask', async (req, res, query) => {
   try {
-    const model = query.model === 'large' ? 'gemma4:26b' : 'gemma4:e4b';
+    const model = query.model === 'large' ? (process.env.RAG_MODEL_LARGE || 'qwen3:14b') : (process.env.RAG_MODEL || 'qwen3:14b');
     const result = await handleAsk(query.q, model);
     json(res, ok(result));
   } catch (err) {
@@ -1208,7 +1208,7 @@ const OPENAPI_SPEC = {
         tags: ['RAG'],
         parameters: [
           { name: 'q', in: 'query', required: true, schema: { type: 'string' }, description: 'Natural language question' },
-          { name: 'model', in: 'query', schema: { type: 'string', enum: ['default', 'large'], default: 'default' }, description: 'Model size: default=gemma4:e4b, large=gemma4:26b' },
+          { name: 'model', in: 'query', schema: { type: 'string', enum: ['default', 'large'], default: 'default' }, description: 'Model size: default=qwen3:14b (or RAG_MODEL env), large=RAG_MODEL_LARGE env' },
         ],
         responses: { 200: { description: 'AI-generated answer with source posts and backend metadata', content: { 'application/json': { schema: { $ref: '#/components/schemas/AskResponse' } } } } },
       },
@@ -1337,7 +1337,7 @@ const OPENAPI_SPEC = {
             type: 'object',
             properties: {
               answer: { type: 'string' },
-              backend: { type: 'string', enum: ['gemma4:e4b', 'gemma4:26b', 'apfel'], description: 'Which LLM backend generated the answer' },
+              backend: { type: 'string', description: 'Which LLM backend generated the answer (model name or apfel)' },
               latency_ms: { type: 'integer', description: 'Total request latency including retrieval and generation' },
               sources: {
                 type: 'array',
