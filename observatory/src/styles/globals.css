@@ -1,0 +1,364 @@
+@import "tailwindcss";
+
+:root {
+  --housing: #F0EDE5;
+  --surface: #E6E2DA;
+  --surface-raised: #FAFAF7;
+  --ink: #1A1A18;
+  --ink-secondary: #8A8A87;
+  --ink-muted: #C5C3BE;
+  --accent: #FF5500;
+  --divider: #D5D0C8;
+  --knob: #c8c8c8;
+
+  --shadow-device: 0 1px 2px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.04), 0 12px 24px rgba(0,0,0,0.03);
+  --shadow-panel: inset 0 2px 4px rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.5);
+  --shadow-raised: 0 1px 2px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.8);
+  --shadow-knob: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 3px rgba(255,255,255,0.6);
+
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-display: 'Cinzel', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+@theme {
+  --color-housing: #F0EDE5;
+  --color-surface: #E6E2DA;
+  --color-surface-raised: #FAFAF7;
+  --color-ink: #1A1A18;
+  --color-ink-secondary: #8A8A87;
+  --color-ink-muted: #C5C3BE;
+  --color-accent: #FF5500;
+  --color-divider: #D5D0C8;
+
+  --font-family-mono: 'Share Tech Mono', monospace;
+  --font-family-display: 'Cinzel', serif;
+  --font-family-body: 'Inter', sans-serif;
+
+  --shadow-device: 0 1px 2px rgba(0,0,0,0.06), 0 4px 8px rgba(0,0,0,0.04), 0 12px 24px rgba(0,0,0,0.03);
+  --shadow-panel: inset 0 2px 4px rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.5);
+  --shadow-raised: 0 1px 2px rgba(0,0,0,0.06), 0 1px 0 rgba(255,255,255,0.8);
+  --shadow-knob: 0 4px 12px rgba(0,0,0,0.15), inset 0 1px 3px rgba(255,255,255,0.6);
+}
+
+body {
+  background-color: var(--housing);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Speaker grille -- dark dots on warm white */
+.dot-matrix {
+  background-image: radial-gradient(circle, #1a1a18 1.5px, transparent 1.5px);
+  background-size: 10px 10px;
+}
+
+.dot-matrix-muted {
+  background-image: radial-gradient(circle, rgba(26,26,24,0.07) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+/* Device housing panel */
+.device-housing {
+  background: linear-gradient(165deg, #F2EEE6 0%, #E8E4DC 100%);
+  border-radius: 12px;
+  border: 1px solid #D5D0C8;
+  box-shadow: var(--shadow-device);
+}
+
+/* Recessed display area */
+.recessed {
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow-panel);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-secondary); }
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.animate-pulse-soft { animation: pulse-soft 2s ease-in-out infinite; }
+
+/* ============================================================
+   DEVICE SHELL — Braun Digital Rotary Radio
+   Inspired by: T3 (flush surfaces, 60/40 split),
+   SK4 (sectioned layout, material honesty),
+   T1000 (information density zoning),
+   ET66 (negative space, color hierarchy)
+   ============================================================ */
+
+/* Page backdrop — cooler/darker than the device to lift it off the surface.
+   Like a desk surface under a Braun product. */
+.device-backdrop {
+  background: #D8D4CC;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Outer device body — injection-molded warm white plastic.
+   Subtle top-to-bottom gradient implies curvature (T3 principle).
+   Layered shadows: contact → near → ambient → far ambient.
+   The 1px border simulates the parting line of a mold. */
+.device-body {
+  background: linear-gradient(
+    168deg,
+    #F4F1EA 0%,       /* top highlight — light catching the upper edge */
+    #F0EDE5 15%,      /* housing white settles in */
+    #EBE7DF 85%,      /* subtle darkening toward bottom */
+    #E6E2DA 100%      /* shadow side at base */
+  );
+  border: 1px solid #CDC8C0;
+  border-top-color: #D8D4CD;    /* top edge catches more light */
+  border-bottom-color: #C2BDB5; /* bottom edge in shadow */
+  border-radius: 14px;
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.04),                /* contact shadow — tight to surface */
+    0 2px 4px rgba(0,0,0,0.05),                /* near shadow — object lift */
+    0 8px 16px rgba(0,0,0,0.04),               /* mid shadow — ambient occlusion */
+    0 20px 40px rgba(0,0,0,0.035),             /* far ambient — room lighting */
+    inset 0 1px 0 rgba(255,255,255,0.65),      /* top edge highlight — chamfer catch */
+    inset 0 -1px 0 rgba(0,0,0,0.03);          /* bottom edge — subtle shadow line */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Horizontal seam divider — physical mold line between device sections.
+   Two-line technique: dark groove + light ridge = plastic seam illusion.
+   Borrowed from SK4's sectioned top panel divisions. */
+.device-seam {
+  height: 0;
+  border: none;
+  border-top: 1px solid rgba(0,0,0,0.10);     /* shadow line (groove) */
+  border-bottom: 1px solid rgba(255,255,255,0.50); /* highlight (ridge) */
+  margin: 0;
+}
+
+/* Recessed content viewport — the display area sunk INTO the body.
+   Like the T1000's tuning scale window or the ET66's LCD recess.
+   Inset shadows create the illusion of depth into the housing. */
+.device-viewport {
+  background: #E4E0D8;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.08),         /* top shadow — depth into housing */
+    inset 0 1px 2px rgba(0,0,0,0.05),         /* tight inner edge */
+    inset 0 -1px 0 rgba(255,255,255,0.35);    /* bottom inner highlight — floor of recess */
+}
+
+/* Status bar — top section of the device.
+   The T1000's upper nomenclature strip: station info, indicator. */
+.device-status-bar {
+  padding: 14px 20px;
+}
+
+/* Controls section — bottom panel housing the rotary knob.
+   Slightly raised relative to the viewport (sits on the body surface).
+   The SK4 principle: controls in their own zone, separate from content. */
+.device-controls {
+  padding: 20px 24px;
+  position: relative;
+}
+
+/* Dot-matrix speaker grille strip — horizontal divider texture.
+   T3's perforated grille, miniaturized as a decorative seam between
+   content and controls. Functional aesthetic: implies a vent or speaker. */
+.device-grille-strip {
+  height: 16px;
+  background-color: #E8E4DC;
+  background-image: radial-gradient(circle, rgba(26,26,24,0.09) 1px, transparent 1px);
+  background-size: 8px 8px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.04),
+    inset 0 -1px 0 rgba(255,255,255,0.3);
+}
+
+/* ============================================================
+   STATION SCROLL-SNAP — Horizontal page-flip navigation
+   ============================================================ */
+
+/* Horizontal scroll container — snaps like native iOS app pages.
+   All 12 stations sit side-by-side; only the active one is visible. */
+.station-scroller {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.station-scroller::-webkit-scrollbar {
+  display: none; /* Chromium / Safari */
+}
+
+/* Each station fills the viewport width and snaps into place.
+   scroll-snap-stop: always prevents fast-flick from skipping stations. */
+.station-panel {
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  padding: 1rem 1.5rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 479px) {
+  .station-panel {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Desktop: disable horizontal swipe — rotary knob is primary nav.
+   The scroller still scrolls programmatically via scrollTo(). */
+@media (pointer: fine) {
+  .station-scroller {
+    overflow-x: hidden;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE DEVICE — iOS Native Feel
+   ============================================================ */
+
+/* Prevent pull-to-refresh interference */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Safe area handling */
+.device-status-bar {
+  padding-top: max(14px, env(safe-area-inset-top));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+
+.device-controls {
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+}
+
+/* Mobile warm backdrop */
+@media (max-width: 820px) {
+  .device-backdrop {
+    background: #D4CFC4;
+  }
+}
+
+/* iPhone portrait — device IS the screen */
+@media (max-width: 479px) {
+  .device-backdrop {
+    padding: 0;
+    background: #F0EDE5;
+  }
+
+  .device-body {
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  .device-viewport {
+    border-radius: 6px;
+    margin: 0 8px;
+  }
+
+  .device-seam {
+    margin: 0 12px;
+  }
+
+  .device-grille-strip {
+    margin: 0 8px;
+    border-radius: 4px;
+  }
+
+  .device-viewport-scroll {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 160px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* iPad mini / small tablet */
+@media (min-width: 480px) and (max-width: 819px) {
+  .device-backdrop {
+    padding: 12px 8px;
+  }
+
+  .device-body {
+    border-radius: 10px;
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.04),
+      0 2px 4px rgba(0,0,0,0.05),
+      0 6px 12px rgba(0,0,0,0.04),
+      inset 0 1px 0 rgba(255,255,255,0.65);
+  }
+}
+
+/* iPad Air+ — full device with warm ambient gradient */
+@media (min-width: 820px) {
+  .device-backdrop {
+    background: linear-gradient(180deg, #D8D4CC 0%, #D2CDBF 100%);
+  }
+}
+
+/* Touch-specific enhancements */
+@media (pointer: coarse) {
+  .device-controls {
+    padding-top: 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  .device-status-bar,
+  .device-controls,
+  .device-grille-strip {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .device-viewport {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+  .data-row:hover { background: transparent; }
+  .data-row:active { background: rgba(0,0,0,0.04); }
+}
+
+/* Dark mode — warm dark variant */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --housing: #2A2825;
+    --surface: #1E1C1A;
+    --surface-raised: #333028;
+    --ink: #E8E4DC;
+    --ink-secondary: #8A8680;
+    --ink-muted: #5A5650;
+    --divider: #3A3835;
+  }
+
+  .device-backdrop {
+    background: #1A1816;
+  }
+
+  .device-body {
+    background: linear-gradient(168deg, #2E2B28 0%, #2A2825 15%, #252320 85%, #201E1C 100%);
+    border-color: #3A3835;
+    border-top-color: #444038;
+    border-bottom-color: #1A1816;
+  }
+
+  .device-viewport {
+    background: #1E1C1A;
+  }
+}

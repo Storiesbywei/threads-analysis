@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads Analysis API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<script>
+  // App Settings — single source of truth for all URLs
+  const APP = {
+    host: window.location.hostname,
+    api: window.location.origin,
+    observatory: `${window.location.protocol}//${window.location.hostname}:4324`,
+    docs: '/docs',
+    grafana: `${window.location.protocol}//${window.location.hostname}:3002`,
+  };
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body, div, span, p, a, h1, h2, h3, h4, input, button {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  body { background: #fff; color: #111; }
+
+  /* ── NAV (desktop/tablet: horizontal top bar) ── */
+  nav {
+    display: flex; align-items: center; gap: 0;
+    border-bottom: 1px solid #e0e0e0;
+    position: sticky; top: 0; background: #fff; z-index: 100;
+    padding: 0 24px; height: 52px;
+  }
+  .nav-logo { margin-right: 16px; display: flex; align-items: center; }
+  .nav-links { display: flex; gap: 0; flex: 1; }
+  .nav-link {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 18px; height: 52px; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+    color: #444; border-bottom: 3px solid transparent; transition: all 0.15s;
+    text-decoration: none; background: none; border-top: none; border-left: none; border-right: none;
+  }
+  .nav-link.active { color: #111; border-bottom-color: #111; }
+  .nav-link:hover { color: #111; }
+  .nav-link i { font-size: 16px; }
+  .nav-label { font-size: 13px; }
+
+  /* ── SECTIONS ── */
+  .section { display: none; }
+  .section.visible { display: block; }
+  .content-area { }
+
+  /* ── PROJECT CARDS ── */
+  .project-card {
+    display: flex; min-height: 520px; overflow: hidden;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .project-left {
+    flex: 0 0 48%; padding: 40px 48px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .project-num {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    color: #111; display: flex; align-items: center; gap: 6px; margin-bottom: 32px;
+  }
+  .project-date {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #555; margin-bottom: 12px; font-weight: 500;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #111; display: inline-block;
+  }
+  .project-title {
+    font-size: 48px; font-weight: 700; line-height: 1.05;
+    letter-spacing: -0.02em; margin-bottom: 14px;
+  }
+  .project-sub {
+    font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 24px; font-weight: 400;
+  }
+  .view-link {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; text-decoration: underline; color: #111;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .view-link:hover { opacity: 0.7; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px; }
+  .tag {
+    background: #111; color: #fff; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em; padding: 7px 14px; text-transform: uppercase;
+  }
+  .project-right {
+    flex: 1; position: relative; overflow: hidden; min-height: 400px;
+  }
+
+  /* Card variants */
+  .card-orange { background: #FF5500; }
+  .card-orange .project-title,
+  .card-orange .project-num { color: #3d1500; }
+  .card-orange .project-date,
+  .card-orange .project-sub { color: #5a2800; }
+  .card-orange .dot { background: #3d1500; }
+  .card-orange .view-link { color: #3d1500; }
+  .card-orange .tag { background: #3d1500; color: #FF5500; }
+
+  .card-dark { background: #111; }
+  .card-dark .project-title { color: #fff; }
+  .card-dark .project-date,
+  .card-dark .project-num,
+  .card-dark .project-sub { color: #aaa; }
+  .card-dark .dot { background: #aaa; }
+  .card-dark .view-link { color: #fff; }
+  .card-dark .tag { background: #fff; color: #111; }
+
+  /* ── OBSERVATORY SECTION ── */
+  .observatory-wrap {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 60vh; padding: 60px 40px; text-align: center;
+  }
+  .observatory-inner { max-width: 500px; }
+  .observatory-inner h2 {
+    font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px;
+  }
+  .observatory-inner p {
+    font-size: 15px; color: #555; line-height: 1.7; margin-bottom: 24px;
+  }
+  .observatory-inner a {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: #FF5500; text-decoration: underline;
+  }
+
+  /* ── HAIKU SECTION ── */
+  .haiku-wrap {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 80vh; padding: 60px 40px;
+  }
+  .haiku-inner { max-width: 640px; width: 100%; }
+  .haiku-text {
+    font-size: 32px; font-style: italic; font-weight: 400;
+    line-height: 1.6; color: #111; margin-bottom: 32px;
+    white-space: pre-line; text-align: center;
+  }
+  .haiku-meta {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #888; margin-bottom: 24px; text-align: center;
+  }
+  .haiku-sources {
+    border-top: 1px solid #e0e0e0; padding-top: 24px; margin-top: 24px;
+  }
+  .haiku-sources h3 {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #888; margin-bottom: 16px;
+  }
+  .source-item {
+    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  .source-text {
+    font-size: 14px; color: #333; line-height: 1.5; margin-bottom: 4px;
+  }
+  .source-meta {
+    font-size: 11px; color: #999; font-weight: 500;
+  }
+  .haiku-btn {
+    background: #fff; border: 1.5px solid #111; border-radius: 20px;
+    padding: 8px 20px; font-size: 12px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    font-family: 'Space Grotesk', sans-serif;
+    margin-top: 24px; transition: all 0.15s;
+  }
+  .haiku-btn:hover { background: #111; color: #fff; }
+  .haiku-center { text-align: center; }
+  .haiku-loading { color: #999; font-size: 14px; text-align: center; padding: 60px 0; }
+
+  /* ── MOBILE: vertical sidebar nav ── */
+  @media (max-width: 479px) {
+    nav {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 60px; flex-direction: column;
+      border-right: 1px solid #e0e0e0; border-bottom: none;
+      padding: 12px 0; height: 100vh; z-index: 100; background: #fff;
+      align-items: stretch;
+    }
+    .nav-logo {
+      margin: 0 0 12px 0; display: flex; justify-content: center;
+    }
+    .nav-links {
+      flex-direction: column; gap: 0; flex: 1;
+    }
+    .nav-link {
+      flex-direction: column; padding: 12px 0; height: auto;
+      font-size: 8px; border-bottom: none;
+      border-left: 3px solid transparent;
+      border-bottom-width: 0; justify-content: center; align-items: center;
+      gap: 4px;
+    }
+    .nav-link.active {
+      border-left-color: #111; border-bottom-color: transparent;
+    }
+    .nav-link i { font-size: 18px; }
+    .nav-label { font-size: 8px; font-weight: 700; }
+    .content-area { margin-left: 60px; }
+    .project-card { flex-direction: column; min-height: auto; }
+    .project-left { flex: none; padding: 24px; }
+    .project-right { min-height: 200px; }
+    .project-title { font-size: 28px; }
+    .haiku-text { font-size: 22px; }
+    .observatory-inner h2 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="#FF5500"/>
+      <path d="M8 8h12v4H8z" fill="#fff"/>
+      <path d="M8 14h8v4H8z" fill="#fff"/>
+    </svg>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link active" onclick="showTab('home',this)">
+      <i class="ph ph-house"></i>
+      <span class="nav-label">HOME</span>
+    </a>
+    <a class="nav-link" onclick="showTab('observatory',this)">
+      <i class="ph ph-chart-scatter"></i>
+      <span class="nav-label">OBSERVATORY</span>
+    </a>
+    <a class="nav-link" onclick="showTab('docs',this)">
+      <i class="ph ph-code"></i>
+      <span class="nav-label">API DOCS</span>
+    </a>
+    <a class="nav-link" onclick="showTab('haiku',this)">
+      <i class="ph ph-feather"></i>
+      <span class="nav-label">HAIKU</span>
+    </a>
+  </div>
+</nav>
+
+<div class="content-area">
+
+  <!-- HOME -->
+  <div class="section visible" id="sec-home">
+
+    <!-- Card 1: Threads Observatory -->
+    <div class="project-card card-orange">
+      <div class="project-left">
+        <div>
+          <div class="project-num">PROJECT 01</div>
+          <div class="project-date"><span class="dot"></span> APR 24, 2026</div>
+          <div class="project-title">Threads Observatory</div>
+          <div class="project-sub">WebGL-powered data dashboard. 12 stations, 70+ API endpoints, Braun industrial design.</div>
+          <a class="view-link" href="#" onclick="window.open(APP.observatory,'_blank');return false">LAUNCH OBSERVATORY</a>
+        </div>
+        <div class="tags">
+          <span class="tag">VITE</span>
+          <span class="tag">REACT</span>
+          <span class="tag">WEBGL</span>
+          <span class="tag">D3</span>
+        </div>
+      </div>
+      <div class="project-right">
+        <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+          <rect width="580" height="520" fill="#3d1500"/>
+          <circle cx="120" cy="180" r="6" fill="#FF8844" opacity="0.7"/>
+          <circle cx="145" cy="160" r="4" fill="#FFAA66" opacity="0.6"/>
+          <circle cx="130" cy="200" r="5" fill="#FF7733" opacity="0.8"/>
+          <circle cx="155" cy="190" r="3" fill="#FFBB77" opacity="0.5"/>
+          <circle cx="110" cy="170" r="7" fill="#FF6622" opacity="0.7"/>
+          <circle cx="140" cy="210" r="4" fill="#FF9955" opacity="0.6"/>
+          <circle cx="160" cy="175" r="5" fill="#FFAA44" opacity="0.7"/>
+          <circle cx="125" cy="195" r="6" fill="#FF8833" opacity="0.8"/>
+          <circle cx="350" cy="300" r="5" fill="#66BBFF" opacity="0.6"/>
+          <circle cx="370" cy="280" r="7" fill="#4499DD" opacity="0.7"/>
+          <circle cx="360" cy="320" r="4" fill="#77CCFF" opacity="0.5"/>
+          <circle cx="380" cy="310" r="6" fill="#5588CC" opacity="0.8"/>
+          <circle cx="340" cy="290" r="3" fill="#88DDFF" opacity="0.6"/>
+          <circle cx="390" cy="295" r="5" fill="#4477BB" opacity="0.7"/>
+          <circle cx="355" cy="335" r="4" fill="#66AAEE" opacity="0.6"/>
+          <circle cx="250" cy="120" r="4" fill="#44DD88" opacity="0.6"/>
+          <circle cx="270" cy="100" r="6" fill="#33CC77" opacity="0.7"/>
+          <circle cx="260" cy="140" r="5" fill="#55EE99" opacity="0.5"/>
+          <circle cx="280" cy="130" r="3" fill="#22BB66" opacity="0.8"/>
+          <circle cx="240" cy="110" r="5" fill="#44CC88" opacity="0.6"/>
+          <circle cx="290" cy="115" r="4" fill="#33BB77" opacity="0.7"/>
+          <circle cx="450" cy="400" r="6" fill="#DD66FF" opacity="0.6"/>
+          <circle cx="470" cy="380" r="4" fill="#CC44EE" opacity="0.7"/>
+          <circle cx="460" cy="420" r="5" fill="#EE88FF" opacity="0.5"/>
+          <circle cx="440" cy="390" r="7" fill="#BB33DD" opacity="0.7"/>
+          <circle cx="480" cy="410" r="3" fill="#DD55EE" opacity="0.6"/>
+          <circle cx="200" cy="380" r="5" fill="#FFDD44" opacity="0.6"/>
+          <circle cx="220" cy="360" r="4" fill="#EECC33" opacity="0.7"/>
+          <circle cx="210" cy="400" r="6" fill="#FFEE66" opacity="0.5"/>
+          <circle cx="190" cy="370" r="3" fill="#DDBB22" opacity="0.8"/>
+          <circle cx="230" cy="390" r="5" fill="#FFCC55" opacity="0.6"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Card 2: The API -->
+    <div class="project-card card-dark">
+      <div class="project-left">
+        <div>
+          <div class="project-num">PROJECT 02</div>
+          <div class="project-date"><span class="dot"></span> APR 24, 2026</div>
+          <div class="project-title">threads-analysis API</div>
+          <div class="project-sub">70+ endpoints. Posts, tags, clusters, sentiment, genealogy, haiku. Flask + PostgreSQL.</div>
+          <a class="view-link" href="/docs">VIEW API DOCS</a>
+        </div>
+        <div class="tags">
+          <span class="tag">FLASK</span>
+          <span class="tag">POSTGRESQL</span>
+          <span class="tag">PGVECTOR</span>
+        </div>
+      </div>
+      <div class="project-right">
+        <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+          <rect width="580" height="520" fill="#1a1a1a"/>
+          <g transform="translate(40, 30)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#333"/>
+          </g>
+          <g transform="translate(40, 50)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.6"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+          </g>
+          <g transform="translate(40, 70)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.4"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#333"/>
+          </g>
+          <g transform="translate(40, 90)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.5"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.3"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+          </g>
+          <g transform="translate(40, 110)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.6"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#333"/>
+          </g>
+          <g transform="translate(40, 130)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.5"/>
+          </g>
+          <g transform="translate(40, 150)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.4"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#333"/>
+          </g>
+          <g transform="translate(40, 170)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.6"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+          </g>
+          <g transform="translate(40, 190)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.3"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.5"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#333"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#333"/>
+          </g>
+          <g transform="translate(40, 210)">
+            <rect x="0" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="70" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="140" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="210" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="280" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+            <rect x="350" y="0" width="60" height="8" rx="2" fill="#FF5500" opacity="0.4"/>
+            <rect x="420" y="0" width="60" height="8" rx="2" fill="#2a2a2a"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Card 3: Device Prototypes -->
+    <div class="project-card">
+      <div class="project-left">
+        <div>
+          <div class="project-num">PROJECT 03</div>
+          <div class="project-date"><span class="dot"></span> APR 24, 2026</div>
+          <div class="project-title">Device Prototypes</div>
+          <div class="project-sub">T1000 tag browser + SK4 post reader. Hardware-rendered CSS instruments.</div>
+          <a class="view-link" href="#" onclick="window.open(APP.observatory,'_blank');return false">VIEW DEMOS</a>
+        </div>
+        <div class="tags">
+          <span class="tag">CSS</span>
+          <span class="tag">BRAUN</span>
+          <span class="tag">T1000</span>
+          <span class="tag">SK4</span>
+        </div>
+      </div>
+      <div class="project-right">
+        <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+          <rect width="580" height="520" fill="#f5f5f5"/>
+          <!-- Simplified radio outline -->
+          <rect x="120" y="100" width="340" height="320" rx="12" fill="none" stroke="#ccc" stroke-width="2"/>
+          <rect x="140" y="120" width="300" height="180" rx="4" fill="none" stroke="#ddd" stroke-width="1.5"/>
+          <!-- Dot grid (speaker) -->
+          <g fill="#ccc">
+            <circle cx="170" cy="150" r="3"/><circle cx="190" cy="150" r="3"/><circle cx="210" cy="150" r="3"/><circle cx="230" cy="150" r="3"/><circle cx="250" cy="150" r="3"/><circle cx="270" cy="150" r="3"/><circle cx="290" cy="150" r="3"/><circle cx="310" cy="150" r="3"/><circle cx="330" cy="150" r="3"/><circle cx="350" cy="150" r="3"/><circle cx="370" cy="150" r="3"/><circle cx="390" cy="150" r="3"/><circle cx="410" cy="150" r="3"/>
+            <circle cx="170" cy="170" r="3"/><circle cx="190" cy="170" r="3"/><circle cx="210" cy="170" r="3"/><circle cx="230" cy="170" r="3"/><circle cx="250" cy="170" r="3"/><circle cx="270" cy="170" r="3"/><circle cx="290" cy="170" r="3"/><circle cx="310" cy="170" r="3"/><circle cx="330" cy="170" r="3"/><circle cx="350" cy="170" r="3"/><circle cx="370" cy="170" r="3"/><circle cx="390" cy="170" r="3"/><circle cx="410" cy="170" r="3"/>
+            <circle cx="170" cy="190" r="3"/><circle cx="190" cy="190" r="3"/><circle cx="210" cy="190" r="3"/><circle cx="230" cy="190" r="3"/><circle cx="250" cy="190" r="3"/><circle cx="270" cy="190" r="3"/><circle cx="290" cy="190" r="3"/><circle cx="310" cy="190" r="3"/><circle cx="330" cy="190" r="3"/><circle cx="350" cy="190" r="3"/><circle cx="370" cy="190" r="3"/><circle cx="390" cy="190" r="3"/><circle cx="410" cy="190" r="3"/>
+            <circle cx="170" cy="210" r="3"/><circle cx="190" cy="210" r="3"/><circle cx="210" cy="210" r="3"/><circle cx="230" cy="210" r="3"/><circle cx="250" cy="210" r="3"/><circle cx="270" cy="210" r="3"/><circle cx="290" cy="210" r="3"/><circle cx="310" cy="210" r="3"/><circle cx="330" cy="210" r="3"/><circle cx="350" cy="210" r="3"/><circle cx="370" cy="210" r="3"/><circle cx="390" cy="210" r="3"/><circle cx="410" cy="210" r="3"/>
+            <circle cx="170" cy="230" r="3"/><circle cx="190" cy="230" r="3"/><circle cx="210" cy="230" r="3"/><circle cx="230" cy="230" r="3"/><circle cx="250" cy="230" r="3"/><circle cx="270" cy="230" r="3"/><circle cx="290" cy="230" r="3"/><circle cx="310" cy="230" r="3"/><circle cx="330" cy="230" r="3"/><circle cx="350" cy="230" r="3"/><circle cx="370" cy="230" r="3"/><circle cx="390" cy="230" r="3"/><circle cx="410" cy="230" r="3"/>
+            <circle cx="170" cy="250" r="3"/><circle cx="190" cy="250" r="3"/><circle cx="210" cy="250" r="3"/><circle cx="230" cy="250" r="3"/><circle cx="250" cy="250" r="3"/><circle cx="270" cy="250" r="3"/><circle cx="290" cy="250" r="3"/><circle cx="310" cy="250" r="3"/><circle cx="330" cy="250" r="3"/><circle cx="350" cy="250" r="3"/><circle cx="370" cy="250" r="3"/><circle cx="390" cy="250" r="3"/><circle cx="410" cy="250" r="3"/>
+            <circle cx="170" cy="270" r="3"/><circle cx="190" cy="270" r="3"/><circle cx="210" cy="270" r="3"/><circle cx="230" cy="270" r="3"/><circle cx="250" cy="270" r="3"/><circle cx="270" cy="270" r="3"/><circle cx="290" cy="270" r="3"/><circle cx="310" cy="270" r="3"/><circle cx="330" cy="270" r="3"/><circle cx="350" cy="270" r="3"/><circle cx="370" cy="270" r="3"/><circle cx="390" cy="270" r="3"/><circle cx="410" cy="270" r="3"/>
+          </g>
+          <!-- Knob -->
+          <circle cx="380" cy="370" r="30" fill="none" stroke="#bbb" stroke-width="2"/>
+          <circle cx="380" cy="370" r="4" fill="#999"/>
+          <!-- Dial line -->
+          <line x1="380" y1="340" x2="380" y2="350" stroke="#999" stroke-width="2"/>
+          <!-- Label -->
+          <rect x="160" y="350" width="120" height="6" rx="3" fill="#ddd"/>
+          <rect x="160" y="365" width="80" height="6" rx="3" fill="#e8e8e8"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- OBSERVATORY -->
+  <div class="section" id="sec-observatory">
+    <div class="observatory-wrap">
+      <div class="observatory-inner">
+        <h2>Threads Observatory</h2>
+        <p>WebGL-powered dashboard with 12 data stations, Braun-inspired industrial design, and real-time API integration.</p>
+        <a href="#" onclick="window.open(APP.observatory,'_blank');return false" style="display:inline-block;margin-top:16px;padding:10px 20px;border:1.5px solid #111;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:0.06em;text-decoration:none;color:#111">OPEN OBSERVATORY</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- API DOCS -->
+  <div class="section" id="sec-docs"></div>
+
+  <!-- HAIKU -->
+  <div class="section" id="sec-haiku">
+    <div class="haiku-wrap">
+      <div class="haiku-inner">
+        <div id="haiku-content">
+          <div class="haiku-loading">Loading haiku...</div>
+        </div>
+        <div class="haiku-center">
+          <button class="haiku-btn" onclick="loadHaiku()">
+            <i class="ph ph-arrow-clockwise"></i> NEW HAIKU
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.remove('visible'); });
+  document.querySelectorAll('.nav-link').forEach(function(l) { l.classList.remove('active'); });
+  document.getElementById('sec-' + name).classList.add('visible');
+  el.classList.add('active');
+
+  if (name === 'docs') {
+    window.location.href = '/docs';
+  }
+  if (name === 'haiku') {
+    loadHaiku();
+  }
+}
+
+function loadHaiku() {
+  var container = document.getElementById('haiku-content');
+  container.innerHTML = '<div class="haiku-loading">Loading haiku...</div>';
+
+  fetch('/haiku/latest')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var d = json.data;
+      if (!d || !d.haiku) {
+        container.innerHTML = '<div class="haiku-loading">No haiku found.</div>';
+        return;
+      }
+      var html = '';
+      html += '<div class="haiku-text">' + escapeHtml(d.haiku) + '</div>';
+      html += '<div class="haiku-meta">';
+      if (d.model) html += d.model;
+      if (d.generated_at) html += ' / ' + d.generated_at.split('T')[0];
+      html += '</div>';
+
+      if (d.sources && d.sources.length > 0) {
+        html += '<div class="haiku-sources">';
+        html += '<h3>SOURCE POSTS</h3>';
+        for (var i = 0; i < d.sources.length; i++) {
+          var s = d.sources[i];
+          var text = s.post_text || '';
+          if (text.length > 120) text = text.substring(0, 120) + '...';
+          html += '<div class="source-item">';
+          html += '<div class="source-text">' + escapeHtml(text) + '</div>';
+          html += '<div class="source-meta">';
+          if (s.period) html += s.period;
+          if (s.ago) html += ' / ' + s.ago;
+          html += '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      container.innerHTML = html;
+    })
+    .catch(function(err) {
+      container.innerHTML = '<div class="haiku-loading">Error loading haiku.</div>';
+    });
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+</script>
+
+</body>
+</html>

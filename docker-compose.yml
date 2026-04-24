@@ -151,6 +151,17 @@ services:
         sleep $$(($${PIPELINE_INTERVAL_HOURS} * 3600));
       done'
 
+  # ─── Observatory: WebGL data dashboard on :4324 ────────────────
+  observatory:
+    build:
+      context: ./observatory
+    restart: unless-stopped
+    profiles: [web, full]
+    ports:
+      - "4324:80"
+    depends_on:
+      - flask-api
+
 volumes:
   pgdata:
   grafana-data:

@@ -29,8 +29,16 @@ info = Info(
     version="1.0.0",
     description="iOS Shortcuts-friendly API for @maybe_foucault Threads analytics",
 )
-app = OpenAPI(__name__, info=info, doc_prefix="/docs")
+app = OpenAPI(__name__, info=info, doc_prefix="/docs",
+              static_folder="static", static_url_path="/static")
 CORS(app)
+
+
+@app.route("/")
+def index():
+    """Homepage — entry point to Observatory, API docs, and Haiku."""
+    return app.send_static_file("index.html")
+
 
 # ─── Swagger tags ────────────────────────────────────────────────
 stats_tag = Tag(name="Stats", description="Engagement & analytics endpoints")
@@ -583,6 +591,43 @@ def stats_tags():
     for r in rows:
         r["percentage"] = round(r["count"] / total * 100, 1)
     return data_response(rows, {"type": "tags"})
+
+
+@app.get("/stats/corpus")
+def stats_corpus():
+    """Latest corpus snapshot — entropy, Zipf, Heaps, tag distribution."""
+    row = query_all("""
+        SELECT total_posts, total_words, vocabulary_size,
+               char_entropy, word_entropy, bigram_entropy, conditional_entropy,
+               zipf_exponent, tag_entropy, heaps_exponent,
+               topic_stay_rate, burst_rate,
+               tag_distribution, sub_tag_distribution, category_entropies,
+               computed_at
+        FROM corpus_snapshots
+        ORDER BY computed_at DESC LIMIT 1
+    """)
+    if not row:
+        return data_response({}, {"type": "corpus"})
+    d = row[0]
+    if d.get("computed_at"):
+        d["computed_at"] = iso(d["computed_at"])
+    return data_response(d, {"type": "corpus"})
+
+
+@app.get("/stats/corpus/history")
+def stats_corpus_history():
+    """Corpus snapshot history — time-series of key metrics."""
+    rows = query_all("""
+        SELECT computed_at, total_posts, total_words, vocabulary_size,
+               word_entropy, zipf_exponent, heaps_exponent,
+               tag_entropy, topic_stay_rate, burst_rate
+        FROM corpus_snapshots
+        ORDER BY computed_at
+    """)
+    for r in rows:
+        if r.get("computed_at"):
+            r["computed_at"] = iso(r["computed_at"])
+    return data_response(rows, {"type": "corpus_history"})
 
 
 @app.get("/stats/velocity")

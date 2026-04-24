@@ -1,0 +1,511 @@
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/space-grotesk@5/index.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Space Grotesk','Helvetica Neue',sans-serif;background:transparent}
+
+/* ── SHARED DEVICE CHROME ── */
+.device-label{font-size:9px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#666;margin-bottom:6px}
+
+/* ── T1000 ── */
+.t1000{
+  width:100%;background:#222220;border-radius:3px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.45),0 2px 6px rgba(0,0,0,0.3);
+  overflow:hidden;display:flex;height:320px;margin-bottom:32px;
+}
+
+.t1000-left{
+  flex:0 0 36%;
+  background:radial-gradient(circle,rgba(0,0,0,0.55) 1.2px,transparent 1.2px) #9E9A92;
+  background-size:7px 7px;
+  box-shadow:inset 0 0 24px rgba(0,0,0,0.4);
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+}
+
+.t1000-station-list{
+  flex:1;overflow-y:auto;padding:10px 0;scrollbar-width:none;
+}
+.t1000-station-list::-webkit-scrollbar{display:none}
+
+.t1000-station{
+  padding:7px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;
+  border-left:3px solid transparent;transition:all 0.15s;
+  background:rgba(0,0,0,0);
+}
+.t1000-station:hover{background:rgba(0,0,0,0.2)}
+.t1000-station.active{border-left-color:#CC2418;background:rgba(0,0,0,0.3)}
+.t1000-station.active .st-name{color:#fff}
+.t1000-station.active .st-num{color:#CC2418}
+
+.st-num{font-size:9px;font-weight:700;letter-spacing:0.06em;color:#888;width:16px;flex-shrink:0}
+.st-name{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#bbb;flex:1}
+.st-count{font-size:9px;color:#666;font-family:'Courier New',monospace}
+
+.t1000-right{flex:1;display:flex;flex-direction:column;background:#1E1E1C}
+
+.t1000-scale-window{
+  flex:1;overflow:hidden;background:#F2EEE2;
+  border-bottom:1px solid #111;position:relative;
+}
+
+.t1000-scale-inner{
+  height:100%;overflow-y:auto;padding:4px 0;scrollbar-width:thin;
+  scrollbar-color:#888 transparent;
+}
+
+.data-row{
+  display:flex;align-items:flex-start;gap:10px;padding:7px 14px;
+  border-bottom:0.5px solid rgba(0,0,0,0.08);cursor:pointer;
+  transition:background 0.1s;
+}
+.data-row:hover{background:rgba(0,0,0,0.04)}
+.data-row.active-row{background:rgba(204,36,24,0.07);border-left:2px solid #CC2418}
+
+.row-idx{font-size:8px;color:#aaa;width:18px;flex-shrink:0;font-family:'Courier New',monospace;margin-top:2px}
+.row-text{flex:1;font-size:11px;line-height:1.5;color:#1A1A18}
+.row-meta{font-size:8px;color:#888;white-space:nowrap;font-family:'Courier New',monospace;text-align:right;flex-shrink:0;margin-top:2px}
+.row-views{color:#1A1A18;font-weight:700}
+
+.t1000-controls{
+  flex:0 0 60px;display:flex;align-items:center;padding:0 14px;gap:12px;
+  border-top:1px solid #111;background:#1E1E1C;
+}
+
+.t1k-knob{
+  width:26px;height:26px;border-radius:50%;background:#3A3A38;
+  box-shadow:0 2px 6px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.07);
+  position:relative;cursor:pointer;flex-shrink:0;transition:transform 0.2s;
+}
+.t1k-knob::after{content:'';position:absolute;top:14%;left:50%;transform:translateX(-50%);width:2px;height:28%;background:#888;border-radius:1px}
+.t1k-knob:hover{transform:rotate(15deg)}
+
+.t1k-label{font-size:7px;letter-spacing:0.12em;text-transform:uppercase;color:#555;text-align:center;margin-top:2px}
+.t1k-group{display:flex;flex-direction:column;align-items:center}
+
+.t1k-fm{
+  width:18px;height:18px;border-radius:2px;background:#CC2418;
+  box-shadow:0 1px 4px rgba(0,0,0,0.5);cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:6px;font-weight:700;letter-spacing:0.06em;color:rgba(255,255,255,0.9);
+}
+
+.t1k-sep{width:1px;height:32px;background:#333;flex-shrink:0}
+
+.t1k-sort-label{font-size:8px;letter-spacing:0.08em;text-transform:uppercase;color:#666;
+  padding:3px 8px;border:0.5px solid #333;border-radius:2px;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.t1k-sort-label.on{color:#D4B018;border-color:#D4B018}
+
+.t1000-header-band{
+  height:22px;display:flex;align-items:center;padding:0 14px;
+  border-bottom:1px solid rgba(0,0,0,0.12);background:#EDEAE0;
+  font-size:8px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;
+  color:#666;
+}
+.t1000-header-band .fm-tag{color:#CC2418;margin-right:8px}
+
+/* ── SK4 ── */
+.sk4{
+  width:100%;background:#F0ECE4;border-radius:3px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.2),0 2px 6px rgba(0,0,0,0.1);
+  overflow:hidden;display:flex;flex-direction:column;
+}
+
+.sk4-lid{
+  height:22px;background:rgba(200,220,230,0.35);
+  border-bottom:1px solid rgba(0,0,0,0.07);
+  display:flex;align-items:center;padding:0 20px;gap:16px;
+}
+.sk4-lid-label{font-size:8px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#888}
+.sk4-lid-val{font-size:8px;letter-spacing:0.08em;color:#444;font-family:'Courier New',monospace}
+.sk4-lid-dot{width:5px;height:5px;border-radius:50%;background:#3A6B3A;box-shadow:0 0 4px rgba(58,107,58,0.6)}
+
+.sk4-body{flex:1;display:flex;min-height:260px}
+
+.sk4-platter-zone{
+  flex:0 0 52%;padding:20px 24px;display:flex;align-items:center;justify-content:center;
+  position:relative;background:#F0ECE4;
+}
+
+.sk4-record{
+  width:180px;height:180px;border-radius:50%;background:#1A1A18;
+  box-shadow:0 6px 24px rgba(0,0,0,0.35),inset 0 0 40px rgba(0,0,0,0.5);
+  position:relative;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform 0.6s;
+}
+.sk4-record.spinning{animation:spin 4s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.sk4-grooves{
+  position:absolute;inset:0;border-radius:50%;
+  background:repeating-radial-gradient(circle,transparent 0,transparent 6px,rgba(255,255,255,0.03) 6px,rgba(255,255,255,0.03) 7px);
+}
+
+.sk4-label-disc{
+  width:70px;height:70px;border-radius:50%;
+  background:#CC3322;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;z-index:2;padding:8px;text-align:center;
+}
+
+.sk4-label-title{
+  font-size:7px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+  color:rgba(255,255,255,0.9);line-height:1.3;word-break:break-word;
+}
+.sk4-label-sub{font-size:6px;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.06em}
+
+.sk4-tonearm-wrap{position:absolute;right:28px;top:18px}
+.sk4-tonearm-pivot{
+  width:10px;height:10px;border-radius:50%;background:#888;
+  box-shadow:0 1px 3px rgba(0,0,0,0.4);position:relative;z-index:2;
+}
+.sk4-tonearm-arm{
+  width:80px;height:2.5px;background:#999;border-radius:2px;
+  transform-origin:left center;
+  box-shadow:0 1px 2px rgba(0,0,0,0.3);
+  position:absolute;top:4px;left:10px;
+  transition:transform 0.8s cubic-bezier(0.34,1.2,0.64,1);
+}
+.sk4-tonearm-head{
+  width:8px;height:8px;border-radius:1px;background:#777;
+  position:absolute;right:-4px;top:-3px;
+}
+.sk4-nav-dots{
+  position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;
+}
+.sk4-dot{width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,0.15);cursor:pointer;transition:all 0.2s}
+.sk4-dot.active{background:#1A1A18;transform:scale(1.3)}
+
+.sk4-controls-zone{
+  flex:1;border-left:1px solid rgba(0,0,0,0.07);
+  padding:16px 18px;display:flex;flex-direction:column;gap:12px;
+  background:#ECEAE2;
+}
+
+.sk4-scale-strip{
+  background:#F8F4EC;border-radius:2px;padding:8px 10px;
+  border:0.5px solid rgba(0,0,0,0.08);font-size:7px;
+  font-family:'Courier New',monospace;letter-spacing:0.06em;color:#555;
+  line-height:1.8;
+}
+.sk4-scale-strip .sk4-scale-row{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.sk4-scale-row-bar{height:3px;background:#1A1A18;border-radius:1px;transition:width 0.4s}
+.sk4-scale-row-label{width:60px;flex-shrink:0;color:#888}
+
+.sk4-knob-row{display:flex;gap:14px;align-items:flex-end}
+
+.sk4-knob{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(145deg,#C8C4BC,#A8A4A0);
+  box-shadow:0 2px 5px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.35);
+  position:relative;cursor:pointer;transition:transform 0.2s;
+}
+.sk4-knob::after{content:'';position:absolute;top:14%;left:50%;transform:translateX(-50%);width:1.5px;height:28%;background:#4A4A48;border-radius:1px}
+.sk4-knob:hover{transform:rotate(20deg)}
+.sk4-knob-lbl{font-size:7px;letter-spacing:0.1em;text-transform:uppercase;color:#888;text-align:center;margin-top:3px}
+.sk4-knob-group{display:flex;flex-direction:column;align-items:center}
+
+.sk4-post-text{
+  font-size:12px;line-height:1.65;color:#1A1A18;
+  flex:1;overflow:hidden;display:-webkit-box;
+  -webkit-line-clamp:5;-webkit-box-orient:vertical;
+}
+.sk4-post-meta{font-size:10px;color:#888;letter-spacing:0.04em}
+.sk4-post-panel{background:#F8F4EC;border-radius:2px;padding:10px 12px;border:0.5px solid rgba(0,0,0,0.08);flex:1}
+
+.sk4-btns{display:flex;gap:6px}
+.sk4-btn{
+  flex:1;padding:5px;border-radius:2px;
+  background:transparent;border:0.5px solid rgba(0,0,0,0.15);
+  font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+  cursor:pointer;color:#666;font-family:'Space Grotesk',sans-serif;
+  transition:all 0.15s;text-align:center;
+}
+.sk4-btn:hover{background:rgba(0,0,0,0.05);color:#1A1A18}
+.sk4-btn.red{border-color:#CC3322;color:#CC3322}
+</style>
+
+<h2 class="sr-only">Threads analysis instrument UI — T1000 radio as tag browser with scrollable post rows, and SK4 record player as single-post deep reader.</h2>
+
+<div class="device-label">T1000 — browse mode</div>
+<div class="t1000" id="t1000">
+  <div class="t1000-left">
+    <div class="t1000-station-list" id="stationList"></div>
+  </div>
+  <div class="t1000-right">
+    <div class="t1000-header-band" id="scaleHeader">
+      <span class="fm-tag" id="activeFmTag">FM</span>
+      <span id="activeTagName">philosophy</span>
+      <span style="margin-left:auto;color:#888;font-size:7px" id="activeTagCount"></span>
+    </div>
+    <div class="t1000-scale-window">
+      <div class="t1000-scale-inner" id="dataRows"></div>
+    </div>
+    <div class="t1000-controls">
+      <div class="t1k-group">
+        <div class="t1k-knob" id="knobSort" title="Sort" onclick="cycleSortMode()"></div>
+        <div class="t1k-label">sort</div>
+      </div>
+      <div class="t1k-sep"></div>
+      <div class="t1k-group">
+        <div class="t1k-knob" title="Density" onclick="cycleDensity()"></div>
+        <div class="t1k-label">density</div>
+      </div>
+      <div class="t1k-sep"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="t1k-sort-label on" id="sortViews" onclick="setSort('views')">views</span>
+        <span class="t1k-sort-label" id="sortLikes" onclick="setSort('likes')">likes</span>
+        <span class="t1k-sort-label" id="sortDate" onclick="setSort('date')">date</span>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <div class="t1k-fm" id="fmBtn" onclick="toggleMode()" title="Toggle compact/expanded">≡</div>
+        <div class="t1k-group">
+          <div class="t1k-knob" title="Volume / page"></div>
+          <div class="t1k-label">page</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="device-label">SK4 — deep read mode</div>
+<div class="sk4" id="sk4">
+  <div class="sk4-lid">
+    <div class="sk4-lid-dot"></div>
+    <div class="sk4-lid-label">Now reading</div>
+    <div class="sk4-lid-val" id="sk4HeaderTag">—</div>
+    <div style="margin-left:auto;display:flex;gap:16px">
+      <div class="sk4-lid-val" id="sk4HeaderViews">— views</div>
+      <div class="sk4-lid-val" id="sk4HeaderDate">—</div>
+    </div>
+  </div>
+  <div class="sk4-body">
+    <div class="sk4-platter-zone">
+      <div class="sk4-record" id="sk4Record" onclick="toggleSpin()">
+        <div class="sk4-grooves"></div>
+        <div class="sk4-label-disc">
+          <div class="sk4-label-title" id="sk4LabelTitle">@maybe_foucault</div>
+          <div class="sk4-label-sub" id="sk4LabelSub">post</div>
+        </div>
+      </div>
+      <div class="sk4-tonearm-wrap">
+        <div class="sk4-tonearm-pivot"></div>
+        <div class="sk4-tonearm-arm" id="toneArm">
+          <div class="sk4-tonearm-head"></div>
+        </div>
+      </div>
+      <div class="sk4-nav-dots" id="navDots"></div>
+    </div>
+    <div class="sk4-controls-zone">
+      <div class="sk4-post-panel">
+        <div class="sk4-post-text" id="sk4PostText">Select a tag and post from the T1000 above to load it here.</div>
+        <div class="sk4-post-meta" id="sk4PostMeta" style="margin-top:6px"></div>
+      </div>
+      <div class="sk4-scale-strip" id="sk4Scale">
+        <div style="font-size:7px;color:#888;letter-spacing:0.08em;margin-bottom:4px;text-transform:uppercase">Tag frequency</div>
+      </div>
+      <div class="sk4-knob-row">
+        <div class="sk4-knob-group">
+          <div class="sk4-knob" onclick="sk4Prev()" title="Previous post"></div>
+          <div class="sk4-knob-lbl">prev</div>
+        </div>
+        <div class="sk4-knob-group">
+          <div class="sk4-knob" onclick="sk4Next()" title="Next post"></div>
+          <div class="sk4-knob-lbl">next</div>
+        </div>
+        <div class="sk4-knob-group">
+          <div class="sk4-knob" onclick="randomPost()" title="Random post"></div>
+          <div class="sk4-knob-lbl">rand</div>
+        </div>
+        <div style="margin-left:auto" class="sk4-btns">
+          <div class="sk4-btn red" onclick="sk4Close()">eject</div>
+          <div class="sk4-btn" onclick="openPermalink()">open ↗</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TAGS = [
+  {tag:'philosophy',count:4820,color:'#534AB7'},
+  {tag:'tech',count:3640,color:'#185FA5'},
+  {tag:'personal',count:3210,color:'#3A6B3A'},
+  {tag:'commentary',count:2980,color:'#2E2E2C'},
+  {tag:'one-liner',count:2640,color:'#6B5040'},
+  {tag:'reaction',count:2480,color:'#854F0B'},
+  {tag:'race',count:2190,color:'#C02820'},
+  {tag:'question',count:1820,color:'#1E4D7A'},
+  {tag:'sex-gender',count:1640,color:'#993556'},
+  {tag:'political',count:1580,color:'#A32D2D'},
+  {tag:'media',count:1420,color:'#3B6D11'},
+  {tag:'meta-social',count:1280,color:'#0F6E56'},
+  {tag:'daily-life',count:1140,color:'#555'},
+  {tag:'creative',count:980,color:'#639922'},
+  {tag:'work',count:870,color:'#3C3489'},
+  {tag:'finance',count:760,color:'#854F0B'},
+  {tag:'language',count:680,color:'#185FA5'},
+  {tag:'food',count:540,color:'#993C1D'},
+  {tag:'url-share',count:420,color:'#444'},
+  {tag:'unclassified',count:310,color:'#8A8A87'},
+];
+
+const MOCK_POSTS = {
+  philosophy:[
+    {id:'p1',text:'the thing about Foucault that people miss is that he\'s not arguing power is bad — he\'s arguing it\'s everywhere, including in the places you think you\'re escaping it. "liberation" is still a power move.',views:48200,likes:2840,ago:'3d',tag:'philosophy'},
+    {id:'p2',text:'Deleuze said the problem isn\'t being trapped, it\'s that we\'re desperate to be trapped. that one takes some sitting with.',views:31400,likes:1960,ago:'6d',tag:'philosophy'},
+    {id:'p3',text:'queer theory didn\'t start with sexuality. it started with asking why the normal/abnormal distinction does work for someone.',views:28900,likes:1720,ago:'2w',tag:'philosophy'},
+    {id:'p4',text:'the will to knowledge is also the will to police. every taxonomy is also a surveillance apparatus.',views:22300,likes:1340,ago:'3w',tag:'philosophy'},
+    {id:'p5',text:'Mbembe\'s necropolitics extends Foucault into the question of who gets to die. not just who gets to live.',views:19800,likes:1180,ago:'1mo',tag:'philosophy'},
+    {id:'p6',text:'Sylvia Wynter on the overrepresentation of Man — basically: the European humanist subject got exported as the universal subject. and then the question became who counts as human.',views:18400,likes:1090,ago:'5w',tag:'philosophy'},
+    {id:'p7',text:'every time someone says they\'re "just being logical" they\'re performing a genre of rationality that was built in a very specific place, time, and power structure.',views:16700,likes:990,ago:'2mo',tag:'philosophy'},
+  ],
+  tech:[
+    {id:'t1',text:'Claude Code multi-agent workflows changed how I think about software development. not just autocomplete — actual collaboration with specialized sub-agents.',views:41800,likes:2240,ago:'5d',tag:'tech'},
+    {id:'t2',text:'pgvector with nomic-embed-text at 768 dims. MRR 0.927 after tuning. the Library of Babel is real and it lives on my Mac Mini.',views:34200,likes:1840,ago:'1w',tag:'tech'},
+    {id:'t3',text:'the moment I understood that a 50K prop firm evaluation is really a risk management test disguised as a profit target was a genuinely clarifying moment.',views:28600,likes:1560,ago:'2w',tag:'tech'},
+    {id:'t4',text:'HDBSCAN clusters don\'t lie. the shape of your thinking is visible in the embedding space.',views:24100,likes:1280,ago:'3w',tag:'tech'},
+    {id:'t5',text:'iOS Shortcuts + DataJar + FastAPI = the most underrated personal computing stack. everything is a webhook.',views:21400,likes:1140,ago:'1mo',tag:'tech'},
+  ],
+  race:[
+    {id:'r1',text:'the structure of anti-Blackness is not a Southern thing or a past thing. it\'s the operating system.',views:58400,likes:4210,ago:'1w',tag:'race'},
+    {id:'r2',text:'Hartman\'s "scenes of subjection" — the performance of contentment as survival technology. that framing never leaves you.',views:44700,likes:3180,ago:'2w',tag:'race'},
+    {id:'r3',text:'colorblindness as ideology is just racism with better PR.',views:38200,likes:2940,ago:'3w',tag:'race'},
+  ],
+  commentary:[
+    {id:'c1',text:'the discourse always finds a way to make the victim defend themselves to the people causing the harm. every single time.',views:52100,likes:3840,ago:'4d',tag:'commentary'},
+    {id:'c2',text:'hot take: most "both sides" arguments are just one side with extra steps.',views:38900,likes:2810,ago:'1w',tag:'commentary'},
+    {id:'c3',text:'the algorithm doesn\'t reward nuance. it rewards certainty. and then we wonder why the discourse is bad.',views:31600,likes:2240,ago:'2w',tag:'commentary'},
+  ]
+};
+
+for(const t of TAGS){
+  if(!MOCK_POSTS[t.tag]){
+    MOCK_POSTS[t.tag]=Array.from({length:3},(_,i)=>({
+      id:t.tag+i,
+      text:`A post tagged ${t.tag}. This would load from the real API at /posts/tag/${t.tag}/latest — connect to Tailscale to see live data.`,
+      views:Math.floor(Math.random()*20000+1000),
+      likes:Math.floor(Math.random()*1000+50),
+      ago:(i+1)+'d',
+      tag:t.tag
+    }));
+  }
+}
+
+let activeTag = 'philosophy';
+let activePost = null;
+let sortBy = 'views';
+let compact = false;
+let sk4Idx = 0;
+let sk4Posts = [];
+
+function fmt(n){return n>=1000?(n/1000).toFixed(1)+'K':n}
+
+function initStations(){
+  const el=document.getElementById('stationList');
+  el.innerHTML=TAGS.map((t,i)=>`
+    <div class="t1000-station${t.tag===activeTag?' active':''}" onclick="selectTag('${t.tag}')" id="station-${t.tag}">
+      <span class="st-num">${String(i+1).padStart(2,'0')}</span>
+      <span class="st-name" style="${t.tag===activeTag?'color:#fff':''}">${t.tag}</span>
+      <span class="st-count">${fmt(t.count)}</span>
+    </div>`).join('');
+}
+
+function selectTag(tag){
+  activeTag=tag;
+  document.querySelectorAll('.t1000-station').forEach(s=>{
+    s.classList.remove('active');
+    s.querySelector('.st-name').style.color='';
+    s.querySelector('.st-num').style.color='';
+  });
+  const el=document.getElementById('station-'+tag);
+  if(el){
+    el.classList.add('active');
+    el.querySelector('.st-name').style.color='#fff';
+    el.querySelector('.st-num').style.color='#CC2418';
+    el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+  const tagObj=TAGS.find(t=>t.tag===tag);
+  document.getElementById('activeFmTag').style.color=tagObj?tagObj.color:'#CC2418';
+  document.getElementById('activeTagName').textContent=tag;
+  document.getElementById('activeTagCount').textContent=tagObj?fmt(tagObj.count)+' posts':'';
+  renderRows();
+  updateSk4Scale();
+}
+
+function renderRows(){
+  const posts=[...(MOCK_POSTS[activeTag]||[])];
+  if(sortBy==='views') posts.sort((a,b)=>b.views-a.views);
+  else if(sortBy==='likes') posts.sort((a,b)=>b.likes-a.likes);
+  const el=document.getElementById('dataRows');
+  el.innerHTML=posts.map((p,i)=>{
+    const isActive=activePost&&activePost.id===p.id;
+    return `<div class="data-row${isActive?' active-row':''}" onclick="loadPostToSK4('${p.id}','${activeTag}')">
+      <span class="row-idx">${String(i+1).padStart(2,'0')}</span>
+      <span class="row-text">${compact?p.text.slice(0,80)+'…':p.text.slice(0,160)+(p.text.length>160?'…':'')}</span>
+      <span class="row-meta"><span class="row-views">${fmt(p.views)}</span><br>${p.ago}</span>
+    </div>`;
+  }).join('');
+}
+
+function loadPostToSK4(postId, tag){
+  const posts=MOCK_POSTS[tag]||[];
+  const post=posts.find(p=>p.id===postId);
+  if(!post) return;
+  activePost=post;
+  sk4Posts=posts;
+  sk4Idx=posts.findIndex(p=>p.id===postId);
+  renderRows();
+  updateSK4(post);
+}
+
+function updateSK4(post){
+  if(!post) return;
+  document.getElementById('sk4PostText').textContent=post.text;
+  document.getElementById('sk4PostMeta').textContent=`${fmt(post.views)} views · ${post.likes} likes · ${post.ago}`;
+  document.getElementById('sk4HeaderTag').textContent=post.tag;
+  document.getElementById('sk4HeaderViews').textContent=fmt(post.views)+' views';
+  document.getElementById('sk4HeaderDate').textContent=post.ago;
+
+  const words=post.text.split(' ');
+  const titleWords=words.slice(0,3).join(' ');
+  document.getElementById('sk4LabelTitle').textContent=titleWords.length>18?titleWords.slice(0,18)+'…':titleWords;
+  document.getElementById('sk4LabelSub').textContent=post.tag;
+
+  const total=sk4Posts.length;
+  const pos=sk4Idx/(Math.max(total-1,1));
+  const deg=-45+pos*50;
+  document.getElementById('toneArm').style.transform=`rotate(${deg}deg)`;
+
+  const dots=document.getElementById('navDots');
+  dots.innerHTML=sk4Posts.map((_,i)=>`<div class="sk4-dot${i===sk4Idx?' active':''}" onclick="goToIdx(${i})"></div>`).join('');
+}
+
+function updateSk4Scale(){
+  const el=document.getElementById('sk4Scale');
+  const max=Math.max(...TAGS.map(t=>t.count));
+  el.innerHTML='<div style="font-size:7px;color:#888;letter-spacing:0.08em;margin-bottom:4px;text-transform:uppercase">Tag frequency</div>'+
+    TAGS.slice(0,8).map(t=>`
+      <div class="sk4-scale-row">
+        <span class="sk4-scale-row-label">${t.tag}</span>
+        <div class="sk4-scale-row-bar" style="width:${Math.round(t.count/max*100)}%;background:${t.color}"></div>
+        <span style="font-size:7px;color:#888;margin-left:4px">${fmt(t.count)}</span>
+      </div>`).join('');
+}
+
+function sk4Next(){if(sk4Posts.length){sk4Idx=Math.min(sk4Idx+1,sk4Posts.length-1);updateSK4(sk4Posts[sk4Idx])}}
+function sk4Prev(){if(sk4Posts.length){sk4Idx=Math.max(sk4Idx-1,0);updateSK4(sk4Posts[sk4Idx])}}
+function goToIdx(i){sk4Idx=i;updateSK4(sk4Posts[i])}
+function randomPost(){if(sk4Posts.length){sk4Idx=Math.floor(Math.random()*sk4Posts.length);updateSK4(sk4Posts[sk4Idx])}}
+function sk4Close(){activePost=null;document.getElementById('sk4PostText').textContent='Select a post from the T1000 above.';document.getElementById('sk4PostMeta').textContent='';document.getElementById('navDots').innerHTML='';document.getElementById('toneArm').style.transform='rotate(-45deg)';renderRows()}
+function openPermalink(){if(activePost&&activePost.permalink)window.open(activePost.permalink)}
+function toggleSpin(){document.getElementById('sk4Record').classList.toggle('spinning')}
+function setSort(s){sortBy=s;['views','likes','date'].forEach(x=>document.getElementById('sort'+x.charAt(0).toUpperCase()+x.slice(1))?.classList.remove('on'));document.getElementById('sort'+s.charAt(0).toUpperCase()+s.slice(1))?.classList.add('on');renderRows()}
+function cycleSortMode(){const modes=['views','likes','date'];const i=modes.indexOf(sortBy);setSort(modes[(i+1)%modes.length])}
+function cycleDensity(){compact=!compact;renderRows()}
+function toggleMode(){cycleDensity()}
+
+initStations();
+selectTag('philosophy');
+updateSk4Scale();
+</script>

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads Observatory — Nudge Design Language</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body, div, span, p, a, h1, h2, h3, h4, input, button {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  body { background: #fff; color: #111; }
+  ::selection { background: #FF5500; color: #fff; }
+
+  /* NAV */
+  nav {
+    display: flex; align-items: center; gap: 0; border-bottom: 1px solid #e0e0e0;
+    position: sticky; top: 0; background: #fff; z-index: 100;
+    padding: 0 24px; height: 52px;
+  }
+  .nav-logo { margin-right: 16px; }
+  .nav-link {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 16px; height: 52px; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+    color: #888; border-bottom: 3px solid transparent; transition: all 0.15s;
+    text-decoration: none; white-space: nowrap;
+  }
+  .nav-link.active { color: #111; border-bottom-color: #FF5500; }
+  .nav-link:hover { color: #111; }
+  .nav-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+  .nav-counter { font-size: 12px; font-weight: 700; color: #888; letter-spacing: 0.05em; font-variant-numeric: tabular-nums; }
+  .nav-status-dot { width: 10px; height: 10px; border-radius: 50%; background: #FF5500; box-shadow: 0 0 8px rgba(255,85,0,0.4); }
+  .nav-pill {
+    background: #fff; border: 1.5px solid #111; border-radius: 20px;
+    padding: 6px 16px; font-size: 11px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  /* PROJECT CARDS */
+  .project-card {
+    display: flex; min-height: 520px; overflow: hidden;
+    border-bottom: 1px solid #e0e0e0; cursor: pointer;
+  }
+  .project-left {
+    flex: 0 0 48%; padding: 40px 48px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .project-num { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: #111; display: flex; align-items: center; gap: 6px; margin-bottom: 32px; }
+  .project-date { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #555; margin-bottom: 12px; font-weight: 500; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #111; display: inline-block; }
+  .project-title { font-size: 48px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 14px; }
+  .project-sub { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 24px; font-weight: 400; }
+  .view-link { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: underline; color: #111; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { background: #111; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 7px 14px; text-transform: uppercase; }
+  .project-right { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+
+  /* Card color variants */
+  .card-orange { background: #FF5500; }
+  .card-orange .project-title, .card-orange .project-date, .card-orange .project-num, .card-orange .project-sub { color: #3d1500; }
+  .card-orange .dot { background: #3d1500; }
+  .card-orange .view-link { color: #3d1500; }
+  .card-orange .tag { background: #3d1500; color: #FF5500; }
+
+  .card-dark { background: #111; }
+  .card-dark .project-title { color: #fff; }
+  .card-dark .project-date, .card-dark .project-num, .card-dark .project-sub { color: #aaa; }
+  .card-dark .dot { background: #aaa; }
+  .card-dark .view-link { color: #fff; }
+  .card-dark .tag { background: #fff; color: #111; }
+
+  /* ABOUT / NEBULA layout */
+  .about-wrap { display: flex; min-height: 100vh; }
+  .about-sidebar { width: 80px; border-right: 1px solid #e0e0e0; padding: 24px 0; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .sidebar-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 8px; cursor: pointer; color: #888; transition: color 0.15s; }
+  .sidebar-icon { font-size: 16px; }
+  .sidebar-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .sidebar-item.active { color: #111; }
+  .sidebar-item:hover { color: #111; }
+  .about-main { flex: 1; padding: 48px 64px; max-width: 820px; }
+  .about-title { font-size: 80px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 40px; font-style: italic; }
+  .section-label { display: inline-block; background: #f5d000; color: #333; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 10px; text-transform: uppercase; margin-bottom: 20px; }
+  .bio-box { border: 1.5px solid #e0e0e0; padding: 36px; margin-bottom: 32px; }
+  .bio-headline { font-size: 26px; font-weight: 700; line-height: 1.3; margin-bottom: 24px; letter-spacing: -0.01em; }
+  .bio-p { font-size: 15px; color: #444; line-height: 1.75; margin-bottom: 16px; font-weight: 400; }
+  .bio-current { background: #FF5500; padding: 20px 24px; margin-top: 24px; font-size: 14px; line-height: 1.65; color: #fff; font-weight: 500; border-radius: 2px; }
+  .bio-current strong { font-weight: 700; }
+
+  /* CASE STUDY */
+  .case-wrap { padding: 60px 80px; max-width: 960px; }
+  .case-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #888; margin-bottom: 32px; text-transform: uppercase; }
+  .case-title { font-size: 52px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 16px; }
+  .case-sub { font-size: 16px; color: #555; line-height: 1.7; margin-bottom: 40px; max-width: 600px; font-weight: 400; }
+  .metrics-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 48px; }
+  .metric-card { background: #f5f5f5; padding: 20px 24px; border-radius: 6px; }
+  .metric-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #888; margin-bottom: 6px; text-transform: uppercase; }
+  .metric-val { font-size: 15px; font-weight: 600; color: #111; }
+  .highlight-box { background: #FF5500; padding: 36px 40px; border-radius: 2px; margin-top: 48px; }
+  .highlight-box h3 { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .highlight-box p { color: rgba(255,255,255,0.9); line-height: 1.75; font-size: 15px; font-weight: 400; }
+
+  /* PULSE */
+  .pulse-card { display: flex; min-height: 520px; overflow: hidden; border-bottom: 1px solid #e0e0e0; }
+  .pulse-left { flex: 0 0 48%; padding: 40px 48px; display: flex; flex-direction: column; justify-content: center; }
+  .pulse-right { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #fafafa; }
+  .pulse-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #888; text-transform: uppercase; margin-bottom: 12px; }
+  .pulse-big-num { font-size: 72px; font-weight: 700; letter-spacing: -0.04em; color: #111; margin-bottom: 8px; line-height: 1; }
+  .pulse-big-num.positive { color: #2d6b5a; }
+  .pulse-sublabel { font-size: 13px; color: #888; font-weight: 500; letter-spacing: 0.04em; margin-bottom: 32px; }
+  .energy-bar { display: flex; gap: 2px; margin-bottom: 32px; height: 6px; border-radius: 3px; overflow: hidden; }
+  .energy-bar .seg { height: 100%; }
+  .drift-list { list-style: none; padding: 0; }
+  .drift-list li { font-size: 14px; color: #444; padding: 6px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-weight: 500; }
+  .drift-up { color: #2d6b5a; font-weight: 700; }
+  .drift-down { color: #c02820; font-weight: 700; }
+
+  /* PLAYGROUND / ORACLE */
+  .playground-wrap { position: relative; width: 100%; min-height: 900px; background: #fff; overflow: hidden; cursor: grab; user-select: none; }
+  .playground-wrap:active { cursor: grabbing; }
+  .pg-card { position: absolute; cursor: move; transition: box-shadow 0.2s; }
+  .pg-card:hover { z-index: 10; }
+  .haiku-card {
+    padding: 28px 24px; min-width: 220px; max-width: 280px;
+    box-shadow: 2px 4px 16px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+    border-radius: 2px; transition: box-shadow 0.2s, transform 0.1s;
+  }
+  .haiku-card:hover { box-shadow: 4px 8px 24px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.08); }
+  .haiku-card.yellow { background: #fff9c4; }
+  .haiku-card.blue { background: #daf0f7; }
+  .haiku-card.pink { background: #f9d0e2; }
+  .haiku-card.green { background: #d8f0d8; }
+  .haiku-card.peach { background: #fce4d6; }
+  .haiku-card.lavender { background: #e8daf0; }
+  .haiku-lines { font-size: 16px; line-height: 1.8; color: #222; font-weight: 400; font-style: italic; margin-bottom: 16px; }
+  .haiku-meta { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #999; text-transform: uppercase; }
+  .drag-label { background: #111; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 4px 10px; }
+  .drag-dot { width: 12px; height: 12px; border-radius: 50%; background: #111; }
+
+  /* STAT PILLS */
+  .stat-pills { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 32px; }
+  .stat-pill { display: flex; flex-direction: column; }
+  .stat-pill .sp-val { font-size: 28px; font-weight: 700; color: #111; letter-spacing: -0.02em; }
+  .stat-pill .sp-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #888; text-transform: uppercase; margin-top: 4px; }
+
+  /* SVG CHART AREA */
+  .chart-area { width: 100%; margin: 32px 0; border: 1.5px solid #e0e0e0; border-radius: 4px; overflow: hidden; background: #fafafa; }
+  .chart-area svg { display: block; }
+
+  /* SECTION DIVIDER */
+  .section-divider { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #888; text-transform: uppercase; margin: 48px 0 24px; padding-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="#111"/>
+      <circle cx="14" cy="14" r="6" fill="none" stroke="#FF5500" stroke-width="2"/>
+      <circle cx="14" cy="14" r="2" fill="#FF5500"/>
+    </svg>
+  </div>
+  <div style="display:flex;gap:0;flex:1;">
+    <a class="nav-link active" onclick="showTab('signal',this)">SIGNAL</a>
+    <a class="nav-link" onclick="showTab('entropy',this)">ENTROPY</a>
+    <a class="nav-link" onclick="showTab('nebula',this)">NEBULA</a>
+    <a class="nav-link" onclick="showTab('codex',this)">CODEX</a>
+    <a class="nav-link" onclick="showTab('pulse',this)">PULSE</a>
+    <a class="nav-link" onclick="showTab('oracle',this)">ORACLE</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-counter">05/12</span>
+    <div class="nav-status-dot"></div>
+    <div class="nav-pill">OBSERVATORY</div>
+  </div>
+</nav>
+
+<!-- ============== SIGNAL ============== -->
+<div class="section visible" id="sec-signal">
+
+  <!-- Card 1: Information Entropy — orange variant -->
+  <div class="project-card card-orange">
+    <div class="project-left">
+      <div>
+        <div class="project-num">STATION 02</div>
+        <div class="project-date"><span class="dot"></span> APR 24, 2026</div>
+        <div class="project-title">Information Entropy</div>
+        <div class="project-sub">Shannon entropy, Zipf distributions, and surprise scores across 43,156 posts in the Threads corpus.</div>
+        <div class="view-link" onclick="showTab('entropy',document.querySelectorAll('.nav-link')[1])">VIEW STATION &rarr;</div>
+      </div>
+      <div class="tags">
+        <span class="tag">ENTROPY</span>
+        <span class="tag">INFORMATION THEORY</span>
+      </div>
+    </div>
+    <div class="project-right">
+      <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="580" height="520" fill="#1a2a3a"/>
+        <!-- Grid -->
+        <g stroke="#2a4a6a" stroke-width="0.5" opacity="0.5">
+          <line x1="80" y1="60" x2="80" y2="460"/><line x1="180" y1="60" x2="180" y2="460"/>
+          <line x1="280" y1="60" x2="280" y2="460"/><line x1="380" y1="60" x2="380" y2="460"/>
+          <line x1="480" y1="60" x2="480" y2="460"/>
+          <line x1="80" y1="460" x2="540" y2="460"/><line x1="80" y1="360" x2="540" y2="360"/>
+          <line x1="80" y1="260" x2="540" y2="260"/><line x1="80" y1="160" x2="540" y2="160"/>
+          <line x1="80" y1="60" x2="540" y2="60"/>
+        </g>
+        <!-- Axis labels -->
+        <text x="300" y="500" fill="#4a8ab0" font-size="11" text-anchor="middle" font-family="Space Grotesk" font-weight="600" letter-spacing="0.1em">LOG RANK</text>
+        <text x="30" y="260" fill="#4a8ab0" font-size="11" text-anchor="middle" font-family="Space Grotesk" font-weight="600" letter-spacing="0.1em" transform="rotate(-90,30,260)">LOG FREQ</text>
+        <!-- Scatter points (Zipf distribution) -->
+        <g fill="#FF5500" opacity="0.6">
+          <circle cx="95" cy="80" r="3.5"/><circle cx="105" cy="100" r="3"/><circle cx="115" cy="118" r="3"/>
+          <circle cx="125" cy="135" r="2.5"/><circle cx="135" cy="148" r="2.5"/><circle cx="145" cy="162" r="2.5"/>
+          <circle cx="155" cy="175" r="2.5"/><circle cx="165" cy="185" r="2"/><circle cx="175" cy="198" r="2"/>
+          <circle cx="185" cy="210" r="2"/><circle cx="200" cy="225" r="2"/><circle cx="215" cy="238" r="2"/>
+          <circle cx="230" cy="252" r="2"/><circle cx="248" cy="268" r="1.8"/><circle cx="265" cy="280" r="1.8"/>
+          <circle cx="285" cy="295" r="1.8"/><circle cx="305" cy="308" r="1.5"/><circle cx="325" cy="320" r="1.5"/>
+          <circle cx="345" cy="332" r="1.5"/><circle cx="370" cy="348" r="1.5"/><circle cx="395" cy="360" r="1.5"/>
+          <circle cx="420" cy="372" r="1.5"/><circle cx="445" cy="385" r="1.2"/><circle cx="470" cy="398" r="1.2"/>
+          <circle cx="495" cy="408" r="1.2"/><circle cx="520" cy="420" r="1.2"/>
+        </g>
+        <!-- Power law fit line -->
+        <line x1="90" y1="75" x2="530" y2="430" stroke="#00c8ff" stroke-width="2" opacity="0.7" stroke-dasharray="6,4"/>
+        <!-- Legend -->
+        <rect x="400" y="70" width="130" height="56" rx="4" fill="rgba(0,0,0,0.4)"/>
+        <circle cx="418" cy="88" r="4" fill="#FF5500" opacity="0.7"/>
+        <text x="428" y="92" fill="#8ab" font-size="10" font-family="Space Grotesk">word frequency</text>
+        <line x1="410" y1="108" x2="426" y2="108" stroke="#00c8ff" stroke-width="2" stroke-dasharray="4,3"/>
+        <text x="428" y="112" fill="#8ab" font-size="10" font-family="Space Grotesk">Zipf fit (s=1.85)</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Card 2: The Nebula — dark variant -->
+  <div class="project-card card-dark">
+    <div class="project-left">
+      <div>
+        <div class="project-num">STATION 03</div>
+        <div class="project-date"><span class="dot"></span> APR 24, 2026</div>
+        <div class="project-title">The Nebula</div>
+        <div class="project-sub">35,490 posts projected into 2D space via UMAP, clustered into 390 constellations by semantic similarity.</div>
+        <div class="view-link" onclick="showTab('nebula',document.querySelectorAll('.nav-link')[2])">VIEW STATION &rarr;</div>
+      </div>
+      <div class="tags">
+        <span class="tag">UMAP</span>
+        <span class="tag">CLUSTERING</span>
+        <span class="tag">EMBEDDINGS</span>
+      </div>
+    </div>
+    <div class="project-right">
+      <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="580" height="520" fill="#0a0a12"/>
+        <defs>
+          <radialGradient id="glow1"><stop offset="0%" stop-color="#FF5500" stop-opacity="0.15"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+          <radialGradient id="glow2"><stop offset="0%" stop-color="#00aaff" stop-opacity="0.12"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+          <radialGradient id="glow3"><stop offset="0%" stop-color="#aa55ff" stop-opacity="0.1"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+        </defs>
+        <!-- Cluster glow backgrounds -->
+        <circle cx="180" cy="200" r="100" fill="url(#glow1)"/>
+        <circle cx="380" cy="300" r="120" fill="url(#glow2)"/>
+        <circle cx="450" cy="140" r="80" fill="url(#glow3)"/>
+        <circle cx="140" cy="380" r="70" fill="url(#glow2)"/>
+        <!-- Cluster 1: orange-ish -->
+        <g fill="#FF5500" opacity="0.5">
+          <circle cx="155" cy="175" r="2"/><circle cx="170" cy="190" r="1.8"/><circle cx="185" cy="182" r="2.2"/>
+          <circle cx="162" cy="210" r="1.5"/><circle cx="190" cy="205" r="2"/><circle cx="200" cy="195" r="1.8"/>
+          <circle cx="175" cy="220" r="1.5"/><circle cx="195" cy="215" r="1.2"/><circle cx="148" cy="198" r="1.8"/>
+          <circle cx="210" cy="185" r="1.5"/><circle cx="165" cy="230" r="1.2"/><circle cx="180" cy="165" r="1.8"/>
+          <circle cx="195" cy="170" r="1.5"/><circle cx="205" cy="225" r="1.2"/><circle cx="150" cy="215" r="1.5"/>
+          <circle cx="188" cy="238" r="1"/><circle cx="172" cy="245" r="1.2"/><circle cx="145" cy="185" r="1.5"/>
+        </g>
+        <!-- Cluster 2: blue -->
+        <g fill="#00aaff" opacity="0.45">
+          <circle cx="360" cy="280" r="2"/><circle cx="380" cy="295" r="2.2"/><circle cx="395" cy="285" r="1.8"/>
+          <circle cx="370" cy="310" r="2"/><circle cx="400" cy="305" r="1.5"/><circle cx="385" cy="320" r="1.8"/>
+          <circle cx="355" cy="300" r="1.5"/><circle cx="410" cy="290" r="2"/><circle cx="365" cy="325" r="1.2"/>
+          <circle cx="390" cy="270" r="1.8"/><circle cx="375" cy="335" r="1.5"/><circle cx="345" cy="290" r="1.5"/>
+          <circle cx="405" cy="315" r="1.2"/><circle cx="420" cy="275" r="1.5"/><circle cx="350" cy="315" r="1.8"/>
+          <circle cx="395" cy="340" r="1"/><circle cx="415" cy="300" r="1.5"/><circle cx="365" cy="265" r="1.2"/>
+        </g>
+        <!-- Cluster 3: purple -->
+        <g fill="#aa55ff" opacity="0.45">
+          <circle cx="435" cy="125" r="2"/><circle cx="450" cy="140" r="1.8"/><circle cx="465" cy="130" r="2"/>
+          <circle cx="445" cy="155" r="1.5"/><circle cx="460" cy="148" r="1.8"/><circle cx="470" cy="120" r="1.5"/>
+          <circle cx="440" cy="165" r="1.2"/><circle cx="475" cy="145" r="1.5"/><circle cx="430" cy="145" r="1.8"/>
+          <circle cx="455" cy="115" r="1.2"/><circle cx="480" cy="135" r="1.2"/><circle cx="425" cy="135" r="1.5"/>
+          <circle cx="460" cy="165" r="1"/><circle cx="448" cy="170" r="1.2"/>
+        </g>
+        <!-- Cluster 4: teal -->
+        <g fill="#00ddaa" opacity="0.4">
+          <circle cx="130" cy="365" r="2"/><circle cx="145" cy="380" r="1.8"/><circle cx="155" cy="370" r="2"/>
+          <circle cx="135" cy="395" r="1.5"/><circle cx="160" cy="385" r="1.5"/><circle cx="150" cy="400" r="1.2"/>
+          <circle cx="120" cy="385" r="1.5"/><circle cx="165" cy="395" r="1.2"/><circle cx="140" cy="410" r="1"/>
+          <circle cx="125" cy="375" r="1.5"/><circle cx="170" cy="375" r="1.2"/>
+        </g>
+        <!-- Scattered noise -->
+        <g fill="#fff" opacity="0.15">
+          <circle cx="80" cy="100" r="1"/><circle cx="300" cy="450" r="1"/><circle cx="500" cy="400" r="1"/>
+          <circle cx="250" cy="100" r="1"/><circle cx="100" cy="450" r="1"/><circle cx="520" cy="250" r="1"/>
+          <circle cx="300" cy="150" r="1"/><circle cx="230" cy="350" r="1"/><circle cx="480" cy="450" r="1"/>
+          <circle cx="90" cy="300" r="0.8"/><circle cx="530" cy="180" r="0.8"/><circle cx="310" cy="380" r="0.8"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============== ENTROPY ============== -->
+<div class="section" id="sec-entropy">
+  <div class="case-wrap">
+    <div class="case-label">Station 02 / Information Theory</div>
+    <h1 class="case-title">Information Entropy</h1>
+    <p class="case-sub">Shannon entropy and Zipf analysis of a 43,156-post Threads corpus, measuring linguistic predictability and surprise.</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Char Entropy</div>
+        <div class="metric-val">4.23 bits</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Zipf Exponent</div>
+        <div class="metric-val">1.847</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Vocabulary</div>
+        <div class="metric-val">48,291 words</div>
+      </div>
+    </div>
+
+    <div class="section-divider">The Distribution</div>
+
+    <div class="chart-area">
+      <svg width="100%" viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="360" fill="#fafafa"/>
+        <!-- Grid -->
+        <g stroke="#e0e0e0" stroke-width="0.5">
+          <line x1="60" y1="30" x2="60" y2="320"/><line x1="60" y1="320" x2="760" y2="320"/>
+          <line x1="60" y1="240" x2="760" y2="240" stroke-dasharray="3,3" opacity="0.5"/>
+          <line x1="60" y1="160" x2="760" y2="160" stroke-dasharray="3,3" opacity="0.5"/>
+          <line x1="60" y1="80" x2="760" y2="80" stroke-dasharray="3,3" opacity="0.5"/>
+        </g>
+        <!-- Axis labels -->
+        <text x="400" y="352" fill="#888" font-size="10" text-anchor="middle" font-family="Space Grotesk" font-weight="600" letter-spacing="0.08em">LOG RANK</text>
+        <text x="18" y="175" fill="#888" font-size="10" text-anchor="middle" font-family="Space Grotesk" font-weight="600" letter-spacing="0.08em" transform="rotate(-90,18,175)">LOG FREQUENCY</text>
+        <!-- Y-axis ticks -->
+        <text x="52" y="324" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">1</text>
+        <text x="52" y="244" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">10</text>
+        <text x="52" y="164" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">100</text>
+        <text x="52" y="84" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">1K</text>
+        <!-- Bars (rank-frequency) -->
+        <g fill="#FF5500" opacity="0.7">
+          <rect x="70" y="42" width="8" height="278" rx="1"/>
+          <rect x="84" y="58" width="8" height="262" rx="1"/>
+          <rect x="98" y="72" width="8" height="248" rx="1"/>
+          <rect x="112" y="88" width="8" height="232" rx="1"/>
+          <rect x="126" y="100" width="8" height="220" rx="1"/>
+          <rect x="140" y="112" width="8" height="208" rx="1"/>
+          <rect x="154" y="125" width="8" height="195" rx="1"/>
+          <rect x="168" y="136" width="8" height="184" rx="1"/>
+          <rect x="182" y="148" width="8" height="172" rx="1"/>
+          <rect x="196" y="158" width="8" height="162" rx="1"/>
+          <rect x="214" y="170" width="8" height="150" rx="1"/>
+          <rect x="232" y="182" width="8" height="138" rx="1"/>
+          <rect x="250" y="192" width="8" height="128" rx="1"/>
+          <rect x="268" y="202" width="8" height="118" rx="1"/>
+          <rect x="290" y="215" width="8" height="105" rx="1"/>
+          <rect x="312" y="225" width="8" height="95" rx="1"/>
+          <rect x="338" y="238" width="8" height="82" rx="1"/>
+          <rect x="364" y="248" width="8" height="72" rx="1"/>
+          <rect x="394" y="258" width="8" height="62" rx="1"/>
+          <rect x="424" y="265" width="8" height="55" rx="1"/>
+          <rect x="458" y="274" width="8" height="46" rx="1"/>
+          <rect x="492" y="280" width="8" height="40" rx="1"/>
+          <rect x="530" y="286" width="8" height="34" rx="1"/>
+          <rect x="568" y="292" width="8" height="28" rx="1"/>
+          <rect x="610" y="296" width="8" height="24" rx="1"/>
+          <rect x="652" y="300" width="8" height="20" rx="1"/>
+          <rect x="698" y="304" width="8" height="16" rx="1"/>
+          <rect x="740" y="308" width="8" height="12" rx="1"/>
+        </g>
+        <!-- Power law line -->
+        <line x1="70" y1="50" x2="750" y2="310" stroke="#111" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.4"/>
+      </svg>
+    </div>
+
+    <div class="highlight-box">
+      <h3>The Surprise Distribution</h3>
+      <p>Posts with surprise scores above 12 bits represent linguistic outliers — moments where the vocabulary breaks from established patterns. These 847 posts (1.96% of corpus) cluster around philosophical musings, late-night confessionals, and encounters with unfamiliar concepts. The average surprise is 6.2 bits; anything above 10 suggests genuine novelty in word selection.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============== NEBULA ============== -->
+<div class="section" id="sec-nebula">
+  <div class="about-wrap">
+    <div class="about-sidebar">
+      <div class="sidebar-item active"><span class="sidebar-icon">&#x25CE;</span><span class="sidebar-label">SCATTER</span></div>
+      <div class="sidebar-item"><span class="sidebar-icon">&#x25A6;</span><span class="sidebar-label">CLUSTERS</span></div>
+      <div class="sidebar-item"><span class="sidebar-icon">&#x2194;</span><span class="sidebar-label">BRIDGES</span></div>
+    </div>
+    <div class="about-main">
+      <div class="about-title">NEBULA</div>
+      <div class="section-label">UMAP PROJECTION</div>
+      <div class="bio-box">
+        <div class="bio-headline">35,490 posts embedded via all-MiniLM-L6-v2, projected to 2D via UMAP, clustered via HDBSCAN.</div>
+        <p class="bio-p">Parameters: n_neighbors=15, min_dist=0.1, metric=cosine. HDBSCAN min_cluster_size=8 yields 390 clusters with 2,847 noise points (8.0%). The projection preserves local structure while revealing macro-scale thematic neighborhoods.</p>
+        <div class="bio-current"><strong>390 clusters</strong> identified across the semantic landscape. The largest cluster (philosophy/meaning) contains 1,247 posts. The densest region maps to daily observations and micro-journaling.</div>
+      </div>
+
+      <!-- Fake UMAP scatter -->
+      <div class="chart-area">
+        <svg width="100%" viewBox="0 0 700 500" xmlns="http://www.w3.org/2000/svg">
+          <rect width="700" height="500" fill="#0c0c16"/>
+          <defs>
+            <radialGradient id="ng1"><stop offset="0%" stop-color="#FF5500" stop-opacity="0.12"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            <radialGradient id="ng2"><stop offset="0%" stop-color="#00aaff" stop-opacity="0.1"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            <radialGradient id="ng3"><stop offset="0%" stop-color="#aa44ff" stop-opacity="0.08"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            <radialGradient id="ng4"><stop offset="0%" stop-color="#00dd88" stop-opacity="0.1"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+            <radialGradient id="ng5"><stop offset="0%" stop-color="#ffaa00" stop-opacity="0.08"/><stop offset="100%" stop-color="transparent"/></radialGradient>
+          </defs>
+          <!-- Glow regions -->
+          <circle cx="160" cy="150" r="100" fill="url(#ng1)"/>
+          <circle cx="400" cy="250" r="130" fill="url(#ng2)"/>
+          <circle cx="550" cy="120" r="90" fill="url(#ng3)"/>
+          <circle cx="280" cy="380" r="100" fill="url(#ng4)"/>
+          <circle cx="560" cy="380" r="80" fill="url(#ng5)"/>
+          <!-- Cluster A: orange-red (philosophy) -->
+          <g fill="#FF5500" opacity="0.55">
+            <circle cx="130" cy="120" r="2.2"/><circle cx="145" cy="135" r="1.8"/><circle cx="160" cy="128" r="2.5"/>
+            <circle cx="150" cy="155" r="2"/><circle cx="175" cy="142" r="1.8"/><circle cx="140" cy="168" r="1.5"/>
+            <circle cx="185" cy="155" r="2"/><circle cx="165" cy="170" r="1.5"/><circle cx="135" cy="145" r="2"/>
+            <circle cx="190" cy="138" r="1.5"/><circle cx="155" cy="110" r="1.8"/><circle cx="170" cy="115" r="1.5"/>
+            <circle cx="195" cy="165" r="1.2"/><circle cx="125" cy="155" r="1.5"/><circle cx="180" cy="175" r="1.2"/>
+            <circle cx="145" cy="180" r="1"/><circle cx="165" cy="185" r="1.2"/><circle cx="120" cy="140" r="1.5"/>
+            <circle cx="200" cy="150" r="1"/><circle cx="138" cy="195" r="1"/>
+          </g>
+          <!-- Cluster B: blue (daily observations) -->
+          <g fill="#00aaff" opacity="0.5">
+            <circle cx="375" cy="230" r="2.5"/><circle cx="395" cy="245" r="2"/><circle cx="410" cy="235" r="2.2"/>
+            <circle cx="385" cy="260" r="2"/><circle cx="420" cy="250" r="1.8"/><circle cx="400" cy="270" r="1.8"/>
+            <circle cx="365" cy="250" r="1.5"/><circle cx="430" cy="240" r="2"/><circle cx="380" cy="275" r="1.5"/>
+            <circle cx="415" cy="265" r="1.5"/><circle cx="390" cy="225" r="1.8"/><circle cx="360" cy="240" r="1.8"/>
+            <circle cx="435" cy="255" r="1.2"/><circle cx="370" cy="270" r="1.5"/><circle cx="405" cy="280" r="1.2"/>
+            <circle cx="425" cy="225" r="1.5"/><circle cx="350" cy="255" r="1.2"/><circle cx="395" cy="290" r="1"/>
+            <circle cx="440" cy="270" r="1"/><circle cx="380" cy="215" r="1.2"/><circle cx="355" cy="265" r="1.2"/>
+            <circle cx="415" cy="285" r="1"/><circle cx="405" cy="218" r="1.5"/>
+          </g>
+          <!-- Cluster C: purple (tech) -->
+          <g fill="#aa44ff" opacity="0.5">
+            <circle cx="535" cy="105" r="2"/><circle cx="550" cy="118" r="1.8"/><circle cx="565" cy="108" r="2.2"/>
+            <circle cx="545" cy="130" r="1.5"/><circle cx="570" cy="125" r="1.8"/><circle cx="555" cy="140" r="1.5"/>
+            <circle cx="530" cy="120" r="1.5"/><circle cx="575" cy="115" r="1.2"/><circle cx="540" cy="145" r="1.2"/>
+            <circle cx="560" cy="95" r="1.5"/><circle cx="525" cy="115" r="1.2"/><circle cx="580" cy="135" r="1"/>
+          </g>
+          <!-- Cluster D: green (personal) -->
+          <g fill="#00dd88" opacity="0.45">
+            <circle cx="260" cy="360" r="2"/><circle cx="280" cy="375" r="2.2"/><circle cx="295" cy="365" r="1.8"/>
+            <circle cx="270" cy="390" r="1.5"/><circle cx="300" cy="380" r="2"/><circle cx="285" cy="395" r="1.5"/>
+            <circle cx="250" cy="375" r="1.5"/><circle cx="310" cy="370" r="1.5"/><circle cx="275" cy="405" r="1.2"/>
+            <circle cx="265" cy="345" r="1.5"/><circle cx="295" cy="350" r="1.2"/><circle cx="305" cy="395" r="1"/>
+            <circle cx="255" cy="395" r="1.2"/><circle cx="290" cy="410" r="1"/>
+          </g>
+          <!-- Cluster E: yellow (culture) -->
+          <g fill="#ffaa00" opacity="0.45">
+            <circle cx="545" cy="365" r="2"/><circle cx="560" cy="378" r="1.8"/><circle cx="575" cy="368" r="2"/>
+            <circle cx="555" cy="390" r="1.5"/><circle cx="570" cy="385" r="1.5"/><circle cx="540" cy="380" r="1.5"/>
+            <circle cx="580" cy="375" r="1.2"/><circle cx="550" cy="400" r="1.2"/><circle cx="565" cy="355" r="1.5"/>
+            <circle cx="535" cy="370" r="1.2"/>
+          </g>
+          <!-- Noise -->
+          <g fill="#fff" opacity="0.1">
+            <circle cx="80" cy="300" r="0.8"/><circle cx="480" cy="80" r="0.8"/><circle cx="250" cy="180" r="0.8"/>
+            <circle cx="620" cy="250" r="0.8"/><circle cx="100" cy="420" r="0.8"/><circle cx="480" cy="420" r="0.8"/>
+            <circle cx="320" cy="120" r="0.8"/><circle cx="200" cy="300" r="0.8"/><circle cx="620" cy="450" r="0.8"/>
+            <circle cx="450" cy="150" r="0.8"/><circle cx="150" cy="350" r="0.8"/><circle cx="500" cy="350" r="0.8"/>
+          </g>
+          <!-- Cluster labels -->
+          <text x="160" y="210" fill="#FF5500" font-size="9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" opacity="0.7" letter-spacing="0.08em">PHILOSOPHY</text>
+          <text x="400" y="305" fill="#00aaff" font-size="9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" opacity="0.7" letter-spacing="0.08em">DAILY</text>
+          <text x="555" y="160" fill="#aa44ff" font-size="9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" opacity="0.7" letter-spacing="0.08em">TECH</text>
+          <text x="280" y="430" fill="#00dd88" font-size="9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" opacity="0.7" letter-spacing="0.08em">PERSONAL</text>
+          <text x="560" y="418" fill="#ffaa00" font-size="9" text-anchor="middle" font-family="Space Grotesk" font-weight="600" opacity="0.7" letter-spacing="0.08em">CULTURE</text>
+        </svg>
+      </div>
+
+      <div class="stat-pills">
+        <div class="stat-pill"><span class="sp-val">390</span><span class="sp-label">Clusters</span></div>
+        <div class="stat-pill"><span class="sp-val">35,490</span><span class="sp-label">Points</span></div>
+        <div class="stat-pill"><span class="sp-val">6</span><span class="sp-label">Embedding Models</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============== CODEX ============== -->
+<div class="section" id="sec-codex">
+  <div class="case-wrap">
+    <div class="case-label">Station 04 / Semantic Structure</div>
+    <h1 class="case-title">Knowledge Graph</h1>
+    <p class="case-sub">Pointwise mutual information co-occurrence and TF-IDF concept extraction across 1,638 nodes and 11,155 edges.</p>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Nodes</div>
+        <div class="metric-val">1,638</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Edges</div>
+        <div class="metric-val">11,155</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PMI Pairs</div>
+        <div class="metric-val">2,847</div>
+      </div>
+    </div>
+
+    <div class="section-divider">Network Topology</div>
+
+    <div class="chart-area">
+      <svg width="100%" viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+        <rect width="800" height="500" fill="#fafafa"/>
+        <!-- Edges -->
+        <g stroke="#ddd" stroke-width="1" opacity="0.6">
+          <line x1="400" y1="200" x2="300" y2="150"/><line x1="400" y1="200" x2="500" y2="160"/>
+          <line x1="400" y1="200" x2="350" y2="300"/><line x1="400" y1="200" x2="480" y2="280"/>
+          <line x1="400" y1="200" x2="320" y2="220"/><line x1="400" y1="200" x2="460" y2="230"/>
+          <line x1="300" y1="150" x2="220" y2="120"/><line x1="300" y1="150" x2="250" y2="200"/>
+          <line x1="300" y1="150" x2="340" y2="100"/><line x1="500" y1="160" x2="580" y2="130"/>
+          <line x1="500" y1="160" x2="560" y2="200"/><line x1="500" y1="160" x2="480" y2="100"/>
+          <line x1="350" y1="300" x2="280" y2="340"/><line x1="350" y1="300" x2="320" y2="370"/>
+          <line x1="350" y1="300" x2="400" y2="360"/><line x1="480" y1="280" x2="540" y2="320"/>
+          <line x1="480" y1="280" x2="520" y2="260"/><line x1="480" y1="280" x2="460" y2="350"/>
+          <line x1="220" y1="120" x2="160" y2="100"/><line x1="220" y1="120" x2="180" y2="170"/>
+          <line x1="580" y1="130" x2="640" y2="110"/><line x1="580" y1="130" x2="620" y2="180"/>
+          <line x1="280" y1="340" x2="220" y2="380"/><line x1="540" y1="320" x2="600" y2="350"/>
+          <line x1="250" y1="200" x2="200" y2="250"/><line x1="560" y1="200" x2="600" y2="250"/>
+          <line x1="320" y1="370" x2="360" y2="420"/><line x1="460" y1="350" x2="500" y2="400"/>
+          <line x1="340" y1="100" x2="380" y2="60"/><line x1="480" y1="100" x2="440" y2="60"/>
+        </g>
+        <!-- Strong edges (high PMI) -->
+        <g stroke="#FF5500" stroke-width="2" opacity="0.35">
+          <line x1="400" y1="200" x2="300" y2="150"/><line x1="400" y1="200" x2="500" y2="160"/>
+          <line x1="400" y1="200" x2="350" y2="300"/><line x1="300" y1="150" x2="220" y2="120"/>
+          <line x1="500" y1="160" x2="580" y2="130"/>
+        </g>
+        <!-- Hub nodes -->
+        <circle cx="400" cy="200" r="16" fill="#FF5500" opacity="0.8"/>
+        <circle cx="300" cy="150" r="12" fill="#FF5500" opacity="0.6"/>
+        <circle cx="500" cy="160" r="12" fill="#FF5500" opacity="0.6"/>
+        <circle cx="350" cy="300" r="11" fill="#FF5500" opacity="0.5"/>
+        <circle cx="480" cy="280" r="10" fill="#FF5500" opacity="0.5"/>
+        <!-- Secondary nodes -->
+        <g fill="#111" opacity="0.5">
+          <circle cx="220" cy="120" r="7"/><circle cx="250" cy="200" r="6"/>
+          <circle cx="340" cy="100" r="6"/><circle cx="580" cy="130" r="7"/>
+          <circle cx="560" cy="200" r="6"/><circle cx="480" cy="100" r="6"/>
+          <circle cx="280" cy="340" r="6"/><circle cx="320" cy="370" r="5"/>
+          <circle cx="400" cy="360" r="5"/><circle cx="540" cy="320" r="6"/>
+          <circle cx="520" cy="260" r="5"/><circle cx="460" cy="350" r="5"/>
+          <circle cx="320" cy="220" r="5"/><circle cx="460" cy="230" r="5"/>
+        </g>
+        <!-- Leaf nodes -->
+        <g fill="#ccc" opacity="0.6">
+          <circle cx="160" cy="100" r="4"/><circle cx="180" cy="170" r="4"/>
+          <circle cx="640" cy="110" r="4"/><circle cx="620" cy="180" r="4"/>
+          <circle cx="220" cy="380" r="4"/><circle cx="600" cy="350" r="4"/>
+          <circle cx="200" cy="250" r="4"/><circle cx="600" cy="250" r="4"/>
+          <circle cx="360" cy="420" r="4"/><circle cx="500" cy="400" r="4"/>
+          <circle cx="380" cy="60" r="4"/><circle cx="440" cy="60" r="4"/>
+        </g>
+        <!-- Node labels -->
+        <text x="400" y="195" fill="#fff" font-size="8" text-anchor="middle" font-family="Space Grotesk" font-weight="700">thought</text>
+        <text x="300" y="142" fill="#fff" font-size="7" text-anchor="middle" font-family="Space Grotesk" font-weight="600">philosophy</text>
+        <text x="500" y="155" fill="#fff" font-size="7" text-anchor="middle" font-family="Space Grotesk" font-weight="600">design</text>
+        <text x="350" y="295" fill="#fff" font-size="7" text-anchor="middle" font-family="Space Grotesk" font-weight="600">personal</text>
+        <text x="480" y="275" fill="#fff" font-size="7" text-anchor="middle" font-family="Space Grotesk" font-weight="600">tech</text>
+      </svg>
+    </div>
+
+    <div class="highlight-box">
+      <h3>Emergent Structure</h3>
+      <p>The graph reveals five macro-communities with clear bridges between them. The "thought" node has the highest betweenness centrality (0.34), serving as the conceptual hub connecting philosophy, design, and personal reflection. PMI analysis surfaces non-obvious associations: "morning" co-occurs with "entropy" at PMI 4.2, suggesting a pattern of early philosophical writing.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============== PULSE ============== -->
+<div class="section" id="sec-pulse">
+  <div class="pulse-card" style="border-bottom:none;">
+    <div class="pulse-left">
+      <div>
+        <div class="project-num" style="margin-bottom:24px;">STATION 07 / SENTIMENT</div>
+
+        <div class="pulse-section-title">Current Mood</div>
+        <div class="pulse-big-num positive">+0.34</div>
+        <div class="pulse-sublabel">compound sentiment (VADER)</div>
+
+        <div style="margin:28px 0;">
+          <div class="pulse-section-title">Energy Distribution</div>
+          <div class="energy-bar">
+            <div class="seg" style="width:23%;background:#FF5500;border-radius:3px 0 0 3px;"></div>
+            <div class="seg" style="width:54%;background:#f5d000;"></div>
+            <div class="seg" style="width:23%;background:#ccc;border-radius:0 3px 3px 0;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;font-weight:600;letter-spacing:0.06em;">
+            <span>HIGH 23%</span><span>MID 54%</span><span>LOW 23%</span>
+          </div>
+        </div>
+
+        <div style="margin-top:28px;">
+          <div class="pulse-section-title">Topic Drift (30d)</div>
+          <ul class="drift-list">
+            <li><span>philosophy</span><span class="drift-up">+12</span></li>
+            <li><span>technology</span><span class="drift-down">-8</span></li>
+            <li><span>personal</span><span class="drift-up">+3</span></li>
+            <li><span>culture</span><span class="drift-up">+5</span></li>
+            <li><span>daily log</span><span class="drift-down">-2</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="pulse-right">
+      <svg width="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="580" height="520" fill="#fafafa"/>
+        <!-- Zero line -->
+        <line x1="40" y1="260" x2="560" y2="260" stroke="#ddd" stroke-width="1"/>
+        <text x="28" y="264" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">0</text>
+        <text x="28" y="164" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">+1</text>
+        <text x="28" y="364" fill="#aaa" font-size="9" text-anchor="end" font-family="Space Grotesk">-1</text>
+        <!-- Grid -->
+        <line x1="40" y1="160" x2="560" y2="160" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="40" y1="360" x2="560" y2="360" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="40" y1="210" x2="560" y2="210" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <line x1="40" y1="310" x2="560" y2="310" stroke="#eee" stroke-width="0.5" stroke-dasharray="3,3"/>
+        <!-- Positive area -->
+        <path d="M40,260 L60,248 80,235 100,242 120,225 140,238 160,218 180,230 200,222 220,210 240,228 260,215 280,232 300,240 320,225 340,235 360,218 380,228 400,215 420,230 440,222 460,235 480,240 500,232 520,228 540,238 560,235 560,260 40,260Z" fill="#FF5500" opacity="0.12"/>
+        <!-- Negative area -->
+        <path d="M40,260 L60,268 80,275 100,272 120,280 140,270 160,278 180,272 200,282 220,275 240,268 260,278 280,270 300,265 320,275 340,268 360,280 380,272 400,278 420,268 440,275 460,270 480,265 500,272 520,268 540,265 560,270 560,260 40,260Z" fill="#00aaff" opacity="0.08"/>
+        <!-- Sentiment line -->
+        <polyline fill="none" stroke="#FF5500" stroke-width="2" opacity="0.8"
+          points="40,248 60,248 80,235 100,242 120,225 140,238 160,218 180,230 200,222 220,210 240,228 260,215 280,232 300,240 320,225 340,235 360,218 380,228 400,215 420,230 440,222 460,235 480,240 500,232 520,228 540,238 560,235"/>
+        <!-- Moving average -->
+        <polyline fill="none" stroke="#111" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.3"
+          points="40,250 100,240 160,230 220,220 280,228 340,225 400,222 460,230 520,232 560,234"/>
+        <!-- Date labels -->
+        <text x="40" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">JAN</text>
+        <text x="140" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">FEB</text>
+        <text x="240" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">MAR</text>
+        <text x="340" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">APR</text>
+        <text x="440" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">MAY</text>
+        <text x="540" y="490" fill="#aaa" font-size="9" font-family="Space Grotesk" font-weight="500">JUN</text>
+        <!-- Legend -->
+        <rect x="380" y="40" width="170" height="50" rx="4" fill="rgba(255,255,255,0.9)" stroke="#eee" stroke-width="1"/>
+        <line x1="392" y1="55" x2="412" y2="55" stroke="#FF5500" stroke-width="2"/>
+        <text x="418" y="59" fill="#666" font-size="10" font-family="Space Grotesk">sentiment</text>
+        <line x1="392" y1="75" x2="412" y2="75" stroke="#111" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.4"/>
+        <text x="418" y="79" fill="#666" font-size="10" font-family="Space Grotesk">30d moving avg</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ============== ORACLE ============== -->
+<div class="section" id="sec-oracle">
+  <div style="padding:32px 48px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div class="section-label" style="margin-bottom:0;">STATION 12</div>
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:#888;">GENERATIVE HAIKU</span>
+    </div>
+    <h1 style="font-size:48px;font-weight:700;letter-spacing:-0.03em;margin-bottom:8px;">The Oracle</h1>
+    <p style="font-size:15px;color:#555;margin-bottom:0;font-weight:400;">Haiku distilled from the corpus. Drag to rearrange.</p>
+  </div>
+  <div class="playground-wrap" id="playground" style="min-height:700px;">
+    <div style="position:absolute;top:20px;left:48px;display:flex;align-items:center;gap:6px;">
+      <div class="drag-dot"></div>
+      <div class="drag-label">DRAG</div>
+    </div>
+
+    <div class="pg-card" style="left:80px;top:80px;" id="hk1">
+      <div class="haiku-card yellow" style="transform:rotate(-2deg);">
+        <div class="haiku-lines">digital gardens<br>bloom in recursive patterns<br>morning coffee cold</div>
+        <div class="haiku-meta">cluster 47 / philosophy</div>
+      </div>
+    </div>
+
+    <div class="pg-card" style="left:380px;top:60px;" id="hk2">
+      <div class="haiku-card blue" style="transform:rotate(1.5deg);">
+        <div class="haiku-lines">entropy rising<br>forty thousand conversations<br>distilled to silence</div>
+        <div class="haiku-meta">cluster 12 / information theory</div>
+      </div>
+    </div>
+
+    <div class="pg-card" style="left:660px;top:100px;" id="hk3">
+      <div class="haiku-card pink" style="transform:rotate(-1deg);">
+        <div class="haiku-lines">the algorithm<br>finds patterns I never saw<br>mirror reflecting</div>
+        <div class="haiku-meta">cluster 203 / tech</div>
+      </div>
+    </div>
+
+    <div class="pg-card" style="left:150px;top:320px;" id="hk4">
+      <div class="haiku-card green" style="transform:rotate(2deg);">
+        <div class="haiku-lines">three hundred ninety<br>clusters in semantic space<br>each one a country</div>
+        <div class="haiku-meta">cluster 1 / meta</div>
+      </div>
+    </div>
+
+    <div class="pg-card" style="left:480px;top:340px;" id="hk5">
+      <div class="haiku-card peach" style="transform:rotate(-1.5deg);">
+        <div class="haiku-lines">late night confession<br>surprise score twelve point seven<br>the words break their mold</div>
+        <div class="haiku-meta">cluster 89 / personal</div>
+      </div>
+    </div>
+
+    <div class="pg-card" style="left:280px;top:540px;" id="hk6">
+      <div class="haiku-card lavender" style="transform:rotate(1deg);">
+        <div class="haiku-lines">edges connecting<br>thought to thought, a web unseen<br>meaning emerges</div>
+        <div class="haiku-meta">cluster 156 / knowledge graph</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('visible');
+  if (el) el.classList.add('active');
+
+  // Update station counter
+  const counters = { signal: '01', entropy: '02', nebula: '03', codex: '04', pulse: '07', oracle: '12' };
+  document.querySelector('.nav-counter').textContent = (counters[name] || '01') + '/12';
+}
+
+// Draggable haiku cards
+const playground = document.getElementById('playground');
+let dragEl = null, ox = 0, oy = 0;
+
+document.querySelectorAll('.pg-card').forEach(card => {
+  card.addEventListener('mousedown', e => {
+    dragEl = card;
+    const rect = card.getBoundingClientRect();
+    const pgRect = playground.getBoundingClientRect();
+    ox = e.clientX - (rect.left - pgRect.left);
+    oy = e.clientY - (rect.top - pgRect.top);
+    card.style.zIndex = 99;
+    e.preventDefault();
+  });
+
+  // Touch support
+  card.addEventListener('touchstart', e => {
+    dragEl = card;
+    const touch = e.touches[0];
+    const rect = card.getBoundingClientRect();
+    const pgRect = playground.getBoundingClientRect();
+    ox = touch.clientX - (rect.left - pgRect.left);
+    oy = touch.clientY - (rect.top - pgRect.top);
+    card.style.zIndex = 99;
+  }, { passive: true });
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragEl) return;
+  const pgRect = playground.getBoundingClientRect();
+  dragEl.style.left = (e.clientX - pgRect.left - ox) + 'px';
+  dragEl.style.top = (e.clientY - pgRect.top - oy) + 'px';
+});
+
+document.addEventListener('touchmove', e => {
+  if (!dragEl) return;
+  const touch = e.touches[0];
+  const pgRect = playground.getBoundingClientRect();
+  dragEl.style.left = (touch.clientX - pgRect.left - ox) + 'px';
+  dragEl.style.top = (touch.clientY - pgRect.top - oy) + 'px';
+}, { passive: true });
+
+document.addEventListener('mouseup', () => {
+  if (dragEl) { dragEl.style.zIndex = ''; dragEl = null; }
+});
+
+document.addEventListener('touchend', () => {
+  if (dragEl) { dragEl.style.zIndex = ''; dragEl = null; }
+});
+</script>
+
+</body>
+</html>

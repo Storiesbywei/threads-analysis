@@ -1,0 +1,276 @@
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/space-grotesk@5/index.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body, div, span, p, a, h1, h2, h3, h4, input, button {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+  }
+  nav {
+    display: flex; align-items: center; gap: 0; border-bottom: 1px solid #e0e0e0;
+    position: sticky; top: 0; background: #fff; z-index: 100;
+    padding: 0 24px; height: 52px;
+  }
+  .nav-logo { margin-right: 16px; }
+  .nav-link {
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 18px; height: 52px; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer;
+    color: #444; border-bottom: 3px solid transparent; transition: all 0.15s;
+    text-decoration: none;
+  }
+  .nav-link.active { color: #111; border-bottom-color: #111; }
+  .nav-link:hover { color: #111; }
+  .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .nav-em, .nav-ph { font-size: 12px; font-weight: 700; color: #666; letter-spacing: 0.05em; cursor: pointer; }
+  .nav-contact {
+    background: #fff; border: 1.5px solid #111; border-radius: 20px;
+    padding: 6px 16px; font-size: 12px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; letter-spacing: 0.04em;
+  }
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  /* HOME */
+  .project-card {
+    display: flex; min-height: 520px; overflow: hidden;
+    border-bottom: 1px solid #e0e0e0; cursor: pointer;
+  }
+  .project-left {
+    flex: 0 0 48%; padding: 40px 48px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .project-num { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; color: #111; display: flex; align-items: center; gap: 6px; margin-bottom: 32px; }
+  .project-date { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #555; margin-bottom: 12px; font-weight: 500; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #111; display: inline-block; }
+  .project-title { font-size: 48px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 14px; }
+  .project-sub { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 24px; font-weight: 400; }
+  .view-link { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: underline; color: #111; display: flex; align-items: center; gap: 4px; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { background: #111; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 7px 14px; text-transform: uppercase; }
+  .project-right { flex: 1; position: relative; overflow: hidden; }
+  .card-cyan { background: #00C2E8; }
+  .card-cyan .project-title, .card-cyan .project-date, .card-cyan .project-num, .card-cyan .project-sub { color: #003a47; }
+  .card-cyan .dot { background: #003a47; }
+  .card-cyan .view-link { color: #003a47; }
+  .card-cyan .tag { background: #003a47; color: #00C2E8; }
+  .card-dark { background: #111; }
+  .card-dark .project-title { color: #fff; }
+  .card-dark .project-date, .card-dark .project-num, .card-dark .project-sub { color: #aaa; }
+  .card-dark .dot { background: #aaa; }
+  .card-dark .view-link { color: #fff; }
+  .card-dark .tag { background: #fff; color: #111; }
+
+  /* ABOUT */
+  .about-wrap { display: flex; min-height: 100vh; }
+  .about-sidebar { width: 80px; border-right: 1px solid #e0e0e0; padding: 24px 0; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .sidebar-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 8px; cursor: pointer; color: #555; }
+  .sidebar-icon { font-size: 18px; }
+  .sidebar-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-family: 'Space Grotesk', sans-serif; }
+  .sidebar-item.active { color: #111; }
+  .about-main { flex: 1; padding: 48px 64px; max-width: 820px; }
+  .about-title { font-size: 80px; font-weight: 700; letter-spacing: -0.04em; margin-bottom: 40px; font-style: italic; }
+  .section-label { display: inline-block; background: #f5d000; color: #333; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 10px; text-transform: uppercase; margin-bottom: 20px; }
+  .bio-box { border: 1.5px solid #e0e0e0; padding: 36px; margin-bottom: 32px; }
+  .bio-headline { font-size: 26px; font-weight: 700; line-height: 1.3; margin-bottom: 24px; letter-spacing: -0.01em; }
+  .bio-p { font-size: 15px; color: #444; line-height: 1.75; margin-bottom: 16px; font-weight: 400; }
+  .bio-current { background: #f5d000; padding: 20px 24px; margin-top: 24px; font-size: 14px; line-height: 1.65; color: #333; font-weight: 400; }
+
+  /* PLAYGROUND */
+  .playground-wrap { position: relative; width: 100%; min-height: 900px; background: #fff; overflow: hidden; cursor: grab; user-select: none; }
+  .playground-wrap:active { cursor: grabbing; }
+  .pg-card { position: absolute; cursor: move; }
+  .pg-note { position: absolute; padding: 10px 16px; font-family: 'Caveat', 'Comic Sans MS', cursive; font-size: 15px; line-height: 1.3; background: #fff9c4; color: #333; box-shadow: 2px 3px 8px rgba(0,0,0,0.12); }
+  .pg-note.blue { background: #b8e4f0; }
+  .pg-note.pink { background: #f9d0e2; }
+  .drag-label { background: #111; color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 4px 10px; font-family: 'Space Grotesk', sans-serif; }
+  .drag-dot { width: 12px; height: 12px; border-radius: 50%; background: #111; }
+
+  /* CASE STUDY */
+  .metric-card { background: #f5f5f5; padding: 20px 24px; border-radius: 6px; }
+  .metric-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #888; margin-bottom: 6px; text-transform: uppercase; }
+  .metric-val { font-size: 15px; font-weight: 600; color: #111; }
+</style>
+
+<h2 class="sr-only">Nudge Portfolio — interactive portfolio clone with Space Grotesk typography.</h2>
+
+<nav>
+  <div class="nav-logo" style="margin-right:16px;">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="#111"/><path d="M8 8h12v4H8z" fill="#fff"/><path d="M8 14h8v4H8z" fill="#fff"/></svg>
+  </div>
+  <div style="display:flex;gap:0;flex:1;">
+    <a class="nav-link active" onclick="showTab('home',this)">⌂ HOME</a>
+    <a class="nav-link" onclick="showTab('about',this)">✳ ABOUT</a>
+    <a class="nav-link" onclick="showTab('case',this)">▦ CASE STUDY</a>
+    <a class="nav-link" onclick="showTab('play',this)">▶ PLAYGROUND</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-em">EM</span>
+    <span class="nav-ph">PH</span>
+    <div class="nav-contact">♥ CONTACT</div>
+  </div>
+</nav>
+
+<!-- HOME -->
+<div class="section visible" id="sec-home">
+  <div class="project-card card-cyan">
+    <div class="project-left">
+      <div>
+        <div class="project-num">▓ PROJECT 01</div>
+        <div class="project-date"><span class="dot"></span> MAR 19, 2026</div>
+        <div class="project-title">Meridian Health</div>
+        <div class="project-sub">When therapists spend less time clicking,<br>they have more time for patients.</div>
+        <div class="view-link">VIEW PROJECT ↗</div>
+      </div>
+      <div class="tags"><span class="tag">HEALTHCARE</span><span class="tag">WORKFLOW DESIGN</span></div>
+    </div>
+    <div class="project-right">
+      <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="580" height="520" fill="#1a3a6b"/>
+        <ellipse cx="290" cy="600" rx="350" ry="420" fill="none" stroke="#4a7fd4" stroke-width="22"/>
+        <ellipse cx="290" cy="600" rx="310" ry="380" fill="none" stroke="#4a7fd4" stroke-width="22"/>
+        <ellipse cx="290" cy="600" rx="270" ry="340" fill="none" stroke="#4a7fd4" stroke-width="22"/>
+        <ellipse cx="290" cy="600" rx="230" ry="300" fill="none" stroke="#4a7fd4" stroke-width="22"/>
+        <ellipse cx="290" cy="600" rx="190" ry="260" fill="none" stroke="#4a7fd4" stroke-width="22"/>
+        <ellipse cx="290" cy="600" rx="140" ry="210" fill="#2d7a3a"/>
+        <text x="480" y="430" fill="#fff" font-size="48" font-weight="900" opacity="0.4">3</text>
+        <text x="420" y="480" fill="#fff" font-size="48" font-weight="900" opacity="0.4">2</text>
+        <g transform="translate(220,340)"><circle cx="0" cy="0" r="18" fill="#1a1a1a"/><rect x="-10" y="18" width="20" height="45" fill="#1a1a1a" rx="4"/><line x1="-20" y1="35" x2="20" y2="40" stroke="#1a1a1a" stroke-width="6"/></g>
+        <g transform="translate(330,360)"><circle cx="0" cy="0" r="18" fill="#2a1a1a"/><rect x="-10" y="18" width="20" height="45" fill="#333" rx="4"/><line x1="-18" y1="32" x2="18" y2="38" stroke="#333" stroke-width="6"/></g>
+        <rect x="400" y="28" width="90" height="24" rx="3" fill="#111"/>
+        <text x="408" y="44" fill="#4af" font-size="11" font-weight="700">▪ IMAGE.JPG</text>
+      </svg>
+    </div>
+  </div>
+  <div class="project-card card-dark">
+    <div class="project-left">
+      <div>
+        <div class="project-num">▓ PROJECT 02</div>
+        <div class="project-date"><span class="dot"></span> JAN 08, 2026</div>
+        <div class="project-title">StyleBook</div>
+        <div class="project-sub">Giving salon owners visibility<br>into what actually runs their business.</div>
+        <div class="view-link">VIEW PROJECT ↗</div>
+      </div>
+      <div class="tags"><span class="tag">SAAS</span><span class="tag">SCHEDULING</span></div>
+    </div>
+    <div class="project-right">
+      <svg width="100%" height="100%" viewBox="0 0 580 520" xmlns="http://www.w3.org/2000/svg">
+        <rect width="580" height="520" fill="#222"/>
+        <rect x="40" y="60" width="200" height="130" rx="6" fill="#333"/>
+        <rect x="260" y="40" width="160" height="160" rx="6" fill="#2a2a2a"/>
+        <rect x="80" y="220" width="280" height="180" rx="6" fill="#2d2d2d"/>
+        <rect x="380" y="220" width="140" height="80" rx="6" fill="#333"/>
+        <rect x="55" y="80" width="80" height="10" rx="3" fill="#555"/>
+        <rect x="55" y="96" width="120" height="8" rx="3" fill="#444"/>
+        <circle cx="460" cy="120" r="44" fill="#00C2E8" opacity="0.3"/>
+        <circle cx="460" cy="120" r="28" fill="#00C2E8" opacity="0.5"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<div class="section" id="sec-about">
+  <div class="about-wrap">
+    <div class="about-sidebar">
+      <div class="sidebar-item active"><span class="sidebar-icon">⊙</span><span class="sidebar-label">BIO</span></div>
+      <div class="sidebar-item"><span class="sidebar-icon">▲</span><span class="sidebar-label">STORY</span></div>
+      <div class="sidebar-item"><span class="sidebar-icon">✦</span><span class="sidebar-label">WORK</span></div>
+    </div>
+    <div class="about-main">
+      <div class="about-title">ABOUT</div>
+      <div class="section-label">MAIN BIO</div>
+      <div class="bio-box" style="position:relative;">
+        <svg style="float:right;margin-left:24px;margin-bottom:12px;" width="150" height="190" viewBox="0 0 150 190"><rect width="150" height="190" fill="#c8d8b0"/><circle cx="75" cy="70" r="36" fill="#a0b880"/><rect x="20" y="120" width="110" height="90" rx="8" fill="#8aaa60"/><rect x="118" y="158" width="68" height="28" rx="4" fill="#f5d000" transform="rotate(-3 118 158)"/><text x="122" y="177" fill="#333" font-size="11" font-weight="700" font-family="Space Grotesk, sans-serif">BEJAMAN</text></svg>
+        <div class="bio-headline">I'm Bejaman 🖼 a product designer in Chicago who gets excited 🟨 about making complicated things simple 🔖.</div>
+        <p class="bio-p">I spend my days designing for healthcare platforms, booking systems, and other products where 'just figure it out' isn't an option. The people using these tools are busy, stressed, and have actual work to do. My job is to get out of their way.</p>
+        <p class="bio-p">I've worked on teams of two and teams of twenty. I've had access to endless user research and I've had to make educated guesses with limited data. What stays consistent is asking good questions, collaborating with people who know more than me, and shipping things that actually help.</p>
+        <div class="bio-current">Currently, I'm at Meridian Health working on experiences for mental health clinicians and administrators. Before that, I spent almost two years at StyleBook helping salons manage their businesses.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYGROUND -->
+<div class="section" id="sec-play">
+  <div class="playground-wrap" id="playground">
+    <div style="position:absolute;top:260px;left:55px;display:flex;align-items:center;gap:6px;">
+      <div class="drag-dot"></div>
+      <div class="drag-label">DRAG</div>
+    </div>
+    <div class="pg-card" style="left:360px;top:50px;" id="pc1">
+      <svg width="230" height="250" viewBox="0 0 230 250"><rect width="230" height="250" fill="#e8ddd0"/><rect x="60" y="80" width="80" height="80" fill="#c4a882"/><circle cx="160" cy="150" r="28" fill="#d4895a"/><rect x="30" y="160" width="170" height="90" fill="#d8cfc0"/></svg>
+      <div class="pg-note" style="top:-30px;left:20px;transform:rotate(-1deg);">nothing big, still feels nice</div>
+    </div>
+    <div class="pg-card" style="left:610px;top:40px;" id="pc2">
+      <svg width="200" height="180" viewBox="0 0 200 180"><rect width="200" height="180" fill="#c4d4d8"/><rect x="0" y="100" width="200" height="80" fill="#8ab0b8"/><rect x="30" y="40" width="60" height="60" fill="#b0c8d0" rx="2"/></svg>
+      <div class="pg-note blue" style="top:140px;left:-30px;width:200px;transform:rotate(1deg);">Brain's messy, but it's okay</div>
+    </div>
+    <div class="pg-card" style="left:840px;top:60px;" id="pc3">
+      <svg width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="#8898b0"/></svg>
+      <div class="pg-note blue" style="top:20px;right:-80px;width:160px;transform:rotate(2deg);">Good w…</div>
+    </div>
+    <div class="pg-card" style="left:130px;top:490px;" id="pc4">
+      <svg width="200" height="220" viewBox="0 0 200 220"><rect width="200" height="220" fill="#8b1a1a"/><rect x="30" y="80" width="60" height="60" fill="#c0302a"/><circle cx="140" cy="130" r="22" fill="#d04820"/></svg>
+      <div class="pg-note pink" style="top:10px;left:-60px;transform:rotate(-2deg);">Random shot</div>
+    </div>
+    <div class="pg-card" style="left:460px;top:340px;" id="pc5">
+      <svg width="220" height="240" viewBox="0 0 220 240"><rect width="220" height="240" fill="#4a7ab0"/><rect x="0" y="0" width="80" height="240" fill="#c04030"/><rect x="80" y="0" width="60" height="240" fill="#60a8d0"/><rect x="140" y="0" width="40" height="240" fill="#e8b440"/><rect x="180" y="0" width="40" height="240" fill="#60a0c8"/></svg>
+      <div class="pg-note" style="top:-36px;left:30px;transform:rotate(1deg);">Tiny moments</div>
+    </div>
+    <div class="pg-card" style="left:820px;top:320px;" id="pc6">
+      <svg width="240" height="250" viewBox="0 0 240 250"><rect width="240" height="250" fill="#888"/><path d="M0 250 Q120 100 240 250" fill="#999"/><rect x="0" y="0" width="240" height="120" fill="#555"/></svg>
+      <div class="pg-note blue" style="top:30px;left:-30px;width:190px;transform:rotate(-2deg);">Not sure what I'm…</div>
+    </div>
+    <div class="pg-card" style="left:200px;top:740px;" id="pc7">
+      <svg width="250" height="160" viewBox="0 0 250 160"><rect width="250" height="160" fill="#d44"/><rect x="0" y="80" width="250" height="80" fill="#e8a020"/></svg>
+      <div class="pg-note pink" style="top:-20px;left:10px;transform:rotate(-1deg);">bus bus bus</div>
+    </div>
+  </div>
+</div>
+
+<!-- CASE STUDY -->
+<div class="section" id="sec-case">
+  <div style="padding:60px 80px;max-width:900px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:#888;margin-bottom:32px;text-transform:uppercase;">Case Study</div>
+    <h1 style="font-size:52px;font-weight:700;letter-spacing:-0.03em;margin-bottom:16px;">Meridian Health</h1>
+    <p style="font-size:16px;color:#555;line-height:1.7;margin-bottom:40px;max-width:560px;font-weight:400;">A mental health platform redesigned to reduce documentation overhead and give clinicians more time with patients across 12 clinics.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:48px;">
+      <div class="metric-card"><div class="metric-label">Role</div><div class="metric-val">Lead Product Designer</div></div>
+      <div class="metric-card"><div class="metric-label">Timeline</div><div class="metric-val">8 months</div></div>
+      <div class="metric-card"><div class="metric-label">Outcome</div><div class="metric-val">−34% doc time</div></div>
+    </div>
+    <div style="background:#00C2E8;padding:36px 40px;border-radius:2px;">
+      <div style="font-size:18px;font-weight:700;color:#003a47;margin-bottom:12px;letter-spacing:-0.01em;">The Problem</div>
+      <p style="color:#004a5c;line-height:1.75;font-size:15px;font-weight:400;">Therapists were spending 40+ minutes per session on EHR documentation. The existing tool was built for billing, not care — and it showed.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('visible');
+  el.classList.add('active');
+}
+const playground = document.getElementById('playground');
+let dragEl = null, ox = 0, oy = 0;
+document.querySelectorAll('.pg-card').forEach(card => {
+  card.addEventListener('mousedown', e => {
+    dragEl = card;
+    const rect = card.getBoundingClientRect();
+    const pgRect = playground.getBoundingClientRect();
+    ox = e.clientX - (rect.left - pgRect.left);
+    oy = e.clientY - (rect.top - pgRect.top);
+    card.style.zIndex = 99;
+    e.preventDefault();
+  });
+});
+document.addEventListener('mousemove', e => {
+  if (!dragEl) return;
+  const pgRect = playground.getBoundingClientRect();
+  dragEl.style.left = (e.clientX - pgRect.left - ox) + 'px';
+  dragEl.style.top = (e.clientY - pgRect.top - oy) + 'px';
+});
+document.addEventListener('mouseup', () => { if (dragEl) { dragEl.style.zIndex = ''; dragEl = null; } });
+</script>
