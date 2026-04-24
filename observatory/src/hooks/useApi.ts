@@ -76,6 +76,13 @@ export const useGenealogyTopics = () =>
 export const useGenealogyTimeline = (topic?: string) =>
   useQuery({ queryKey: ['genealogy', 'timeline', topic], queryFn: () => api.fetchGenealogyTimeline(topic), staleTime: 300_000 });
 
+// ── Temporal ──
+export const useHourly = () =>
+  useQuery({ queryKey: ['stats', 'hourly'], queryFn: api.fetchHourly, staleTime: 120_000 });
+
+export const useDaily = () =>
+  useQuery({ queryKey: ['stats', 'daily'], queryFn: api.fetchDaily, staleTime: 120_000 });
+
 // ── Haiku ──
 export const useHaikuLatest = () =>
   useQuery({ queryKey: ['haiku', 'latest'], queryFn: api.fetchHaikuLatest, staleTime: 60_000 });
@@ -89,6 +96,13 @@ export const useDigestToday = () =>
 
 export const useDigestWeek = () =>
   useQuery({ queryKey: ['digest', 'week'], queryFn: api.fetchDigestWeek, staleTime: 300_000 });
+
+export const useDigestBrief = () =>
+  useQuery({ queryKey: ['digest', 'brief'], queryFn: api.fetchDigestBrief, staleTime: 60_000 });
+
+// ── Bridges ──
+export const useBridges = () =>
+  useQuery({ queryKey: ['bridges'], queryFn: api.fetchBridges, staleTime: 300_000 });
 
 // ── Who Am I ──
 export const useWhoAmI = () =>

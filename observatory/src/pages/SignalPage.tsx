@@ -210,7 +210,7 @@ export default function SignalPage() {
         subtitle={subtitle}
         tags={["OVERVIEW", "LIVE DATA"]}
         variant="accent"
-        linkText="EXPLORE TAGS \u2193"
+        linkText="EXPLORE TAGS"
         onLinkClick={scrollToT1000}
       >
         <div
@@ -245,7 +245,6 @@ export default function SignalPage() {
           onItemSelect={handleTagSelect}
           rows={rows}
           onRowClick={handleRowClick}
-          headerLabel={activeTag}
           headerTag={activeTag.toUpperCase()}
           headerCount={`${activeTagCount} posts`}
           sortOptions={["views", "likes", "date"]}

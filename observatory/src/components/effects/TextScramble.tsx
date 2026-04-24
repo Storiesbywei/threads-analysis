@@ -25,7 +25,7 @@ export function TextScramble({ text, speed = 30, className = '' }: TextScrambleP
       setDisplay(chars.join(''));
 
       if (iterRef.current < target.length) {
-        iterRef.current += 0.5;
+        iterRef.current += 1;
         frameRef.current = window.setTimeout(update, speed);
       }
     };

@@ -153,26 +153,21 @@ function StatPill({ label, value }: { label: string; value: string }) {
 
 // ── Section Badge ──
 
-function SectionBadge({
-  label,
-  color = "#f5d000",
-}: {
-  label: string;
-  color?: string;
-}) {
+function SectionBadge({ label }: { label: string }) {
   return (
     <div
       style={{
         display: "inline-block",
-        background: color,
-        color: "#111",
+        background: "transparent",
+        color: "#555",
         fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.1em",
         textTransform: "uppercase",
-        padding: "5px 12px",
+        padding: "4px 12px",
         borderRadius: 3,
         marginBottom: 20,
+        border: "1.5px solid #D5D0C8",
       }}
     >
       {label}

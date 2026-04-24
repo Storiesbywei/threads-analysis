@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light only;
   --housing: #F0EDE5;
   --surface: #E6E2DA;
   --surface-raised: #FAFAF7;
@@ -335,30 +336,5 @@ body {
   .data-row:active { background: rgba(0,0,0,0.04); }
 }
 
-/* Dark mode — warm dark variant */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --housing: #2A2825;
-    --surface: #1E1C1A;
-    --surface-raised: #333028;
-    --ink: #E8E4DC;
-    --ink-secondary: #8A8680;
-    --ink-muted: #5A5650;
-    --divider: #3A3835;
-  }
-
-  .device-backdrop {
-    background: #1A1816;
-  }
-
-  .device-body {
-    background: linear-gradient(168deg, #2E2B28 0%, #2A2825 15%, #252320 85%, #201E1C 100%);
-    border-color: #3A3835;
-    border-top-color: #444038;
-    border-bottom-color: #1A1816;
-  }
-
-  .device-viewport {
-    background: #1E1C1A;
-  }
-}
+/* Dark mode disabled — Braun aesthetic requires light housing.
+   color-scheme: light only on :root forces light mode. */

@@ -37,7 +37,7 @@ function SentimentPanel() {
       <div
         style={{
           fontFamily: "'Share Tech Mono', monospace",
-          fontSize: 64,
+          fontSize: 'clamp(36px, 10vw, 64px)',
           fontWeight: 700,
           color: isLoading ? '#ccc' : sentimentColor,
           lineHeight: 1,
@@ -124,14 +124,16 @@ function TopicDriftSection() {
       <span
         style={{
           display: 'inline-block',
-          backgroundColor: '#f5d000',
-          color: '#111',
+          background: 'transparent',
+          color: '#555',
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          padding: '5px 12px',
+          padding: '4px 12px',
           marginBottom: 20,
+          border: '1.5px solid #D5D0C8',
+          borderRadius: 3,
         }}
       >
         TOPIC DRIFT
@@ -167,7 +169,19 @@ function TopicDriftSection() {
                     textAlign: 'right',
                   }}
                 >
-                  {isPositive ? '\u2191' : '\u2193'}
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '4px solid transparent',
+                      borderRight: '4px solid transparent',
+                      ...(isPositive
+                        ? { borderBottom: '6px solid #2d6b5a', marginRight: 4 }
+                        : { borderTop: '6px solid #C02820', marginRight: 4 }),
+                      verticalAlign: 'middle',
+                    }}
+                  />
                   {Math.abs(item.delta)}
                 </span>
                 <span
@@ -205,14 +219,16 @@ function VibeSection() {
       <span
         style={{
           display: 'inline-block',
-          backgroundColor: '#f5d000',
-          color: '#111',
+          background: 'transparent',
+          color: '#555',
           fontSize: 11,
           fontWeight: 700,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          padding: '5px 12px',
+          padding: '4px 12px',
           marginBottom: 20,
+          border: '1.5px solid #D5D0C8',
+          borderRadius: 3,
         }}
       >
         TODAY&apos;S VIBE

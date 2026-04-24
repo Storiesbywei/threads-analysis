@@ -48,8 +48,15 @@ export const StationScroller = forwardRef<StationScrollerHandle, StationScroller
     useImperativeHandle(ref, () => ({ scrollToStation }), [scrollToStation]);
 
     // When currentIndex changes externally (rotary knob, URL, back button),
-    // scroll to that station.
+    // scroll to that station — but only if we're not already there.
+    // Without this guard, a user swipe → URL update → useEffect loop
+    // sets isExternalScroll=true on a no-op scrollTo, and the NEXT
+    // user swipe's scrollend gets eaten by the guard (off-by-one bug).
     useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const w = el.clientWidth;
+      if (w > 0 && Math.round(el.scrollLeft / w) === currentIndex) return;
       scrollToStation(currentIndex);
     }, [currentIndex, scrollToStation]);
 
