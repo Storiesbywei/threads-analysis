@@ -35,7 +35,7 @@ services:
       APP_SECRETS: ${APP_SECRETS}
       THREADS_USER_SECRETS: ${THREADS_USER_SECRETS}
       DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
-      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-30}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-60}
       METRICS_BATCH_SIZE: ${METRICS_BATCH_SIZE:-200}
       FULL_SYNC_ON_START: ${FULL_SYNC_ON_START:-false}
     volumes:
@@ -118,6 +118,38 @@ services:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
+
+  # ─── Pipeline: automated enrich → embed (→ cluster/palace require host Python) ─
+  # Stages 3-5 (cluster, palace, naming) require Python + HDBSCAN/UMAP — run on host.
+  # Docker pipeline runs stages 1,2,6 by default. Override PIPELINE_SKIP to customize.
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles: [pipeline, full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://threads:${POSTGRES_PASSWORD:-threads_local_dev}@postgres:5432/threads
+      OLLAMA_URL: http://host.docker.internal:11434
+      PIPELINE_INTERVAL_HOURS: ${PIPELINE_INTERVAL_HOURS:-336}
+      PIPELINE_SKIP: ${PIPELINE_SKIP:-3,4,5}
+      BYTHEWEICO_DATA_DIR: /app/bytheweico-data
+    volumes:
+      - ./scripts:/app/scripts
+      - ./output:/app/output
+      - ./data:/app/data
+      - ./public/data:/app/public/data
+      - /Users/weixiangzhang/Local_Dev/projects/ByTheWeiCo/public/data:/app/bytheweico-data
+    command: >
+      sh -c 'while true; do
+        echo "[$(date)] Running pipeline...";
+        node scripts/pipeline.mjs --skip=$${PIPELINE_SKIP} 2>&1 | tee -a output/pipeline-docker.log;
+        echo "[$(date)] Pipeline done. Sleeping $${PIPELINE_INTERVAL_HOURS}h...";
+        sleep $$(($${PIPELINE_INTERVAL_HOURS} * 3600));
+      done'
 
 volumes:
   pgdata:

@@ -1,0 +1,500 @@
+{
+  "id": null,
+  "uid": "embedding-aura",
+  "title": "Embedding Aura — Per-Model Post Explorer",
+  "tags": ["threads", "embeddings", "aura"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "",
+  "time": {
+    "from": "2024-01-01T00:00:00.000Z",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "search",
+        "type": "textbox",
+        "label": "Search Posts",
+        "current": { "text": "", "value": "" },
+        "options": []
+      },
+      {
+        "name": "post_id",
+        "type": "query",
+        "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+        "query": "SELECT id AS __value, LEFT(text, 100) || ' (' || TO_CHAR(timestamp, 'YYYY-MM-DD') || ')' AS __text FROM posts WHERE text IS NOT NULL AND text ILIKE '%${search}%' ORDER BY timestamp DESC LIMIT 30",
+        "current": {},
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "label": "Post"
+      },
+      {
+        "name": "neighbors",
+        "type": "custom",
+        "label": "Neighbors",
+        "query": "5,10,15,20,30",
+        "current": { "text": "10", "value": "10" },
+        "options": [
+          { "text": "5", "value": "5", "selected": false },
+          { "text": "10", "value": "10", "selected": true },
+          { "text": "15", "value": "15", "selected": false },
+          { "text": "20", "value": "20", "selected": false },
+          { "text": "30", "value": "30", "selected": false }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Selected Post",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "id": 1,
+      "title": "Post Detail",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 600 }] },
+          { "matcher": { "id": "byName", "options": "Permalink" }, "properties": [{ "id": "links", "value": [{ "targetBlank": true, "title": "Open on Threads", "url": "${__data.fields.Permalink}" }] }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT text AS \"Post Text\", TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI') AS \"Date\", variety AS \"Type\", ROUND(sentiment::numeric, 2) AS \"Sentiment\", energy AS \"Energy\", intent AS \"Intent\", permalink AS \"Permalink\" FROM posts WHERE id = '${post_id}'",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Embedding Status",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT CASE WHEN embedding IS NOT NULL THEN 'Yes' ELSE 'No' END AS \"Nomic V2 MOE (768d)\", CASE WHEN embedding_minilm IS NOT NULL THEN 'Yes' ELSE 'No' END AS \"All-MiniLM (384d)\", CASE WHEN embedding_bge_m3 IS NOT NULL THEN 'Yes' ELSE 'No' END AS \"BGE-M3 (1024d)\", CASE WHEN embedding_qwen3 IS NOT NULL THEN 'Yes' ELSE 'No' END AS \"Qwen3 Embedding (1024d)\", CASE WHEN embedding_arctic2 IS NOT NULL THEN 'Yes' ELSE 'No' END AS \"Arctic Embed 2 (1024d)\" FROM posts WHERE id = '${post_id}'",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "Nomic Embed Text V2 MOE  —  768 dimensions, general-purpose semantic",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "collapsed": false
+    },
+    {
+      "id": 10,
+      "title": "Nomic V2 MOE — Nearest Neighbors",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 9 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] },
+          { "matcher": { "id": "byName", "options": "Similarity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }, { "id": "min", "value": 0 }, { "id": "max", "value": 1 }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p2.text, 150) AS \"Post Text\", TO_CHAR(p2.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND((1 - (p1.embedding <=> p2.embedding))::numeric, 4) AS \"Similarity\", ROUND(p2.sentiment::numeric, 2) AS \"Sentiment\", p2.energy AS \"Energy\", p2.intent AS \"Intent\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding IS NOT NULL AND p1.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 11,
+      "title": "Nomic V2 MOE — Neighborhood Aura",
+      "type": "piechart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 9 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT p2.energy AS \"Energy\", COUNT(*) AS \"Count\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding IS NOT NULL AND p1.embedding IS NOT NULL AND p2.energy IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "groupBy", "options": { "fields": { "Energy": { "aggregations": [], "operation": "groupby" }, "Count": { "aggregations": ["sum"], "operation": "aggregate" } } } }]
+    },
+    {
+      "id": 12,
+      "title": "Nomic V2 MOE — Avg Sentiment",
+      "type": "gauge",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 9 },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": -0.3 }, { "color": "yellow", "value": -0.1 }, { "color": "green", "value": 0.1 }, { "color": "blue", "value": 0.5 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sub.sentiment)::numeric, 3) AS \"Avg Sentiment\" FROM (SELECT p2.sentiment FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding IS NOT NULL AND p1.embedding IS NOT NULL AND p2.sentiment IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}) sub",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "All-MiniLM  —  384 dimensions, lightweight fast clustering",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false
+    },
+    {
+      "id": 20,
+      "title": "All-MiniLM — Nearest Neighbors",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] },
+          { "matcher": { "id": "byName", "options": "Similarity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }, { "id": "min", "value": 0 }, { "id": "max", "value": 1 }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p2.text, 150) AS \"Post Text\", TO_CHAR(p2.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND((1 - (p1.embedding_minilm <=> p2.embedding_minilm))::numeric, 4) AS \"Similarity\", ROUND(p2.sentiment::numeric, 2) AS \"Sentiment\", p2.energy AS \"Energy\", p2.intent AS \"Intent\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_minilm IS NOT NULL AND p1.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 21,
+      "title": "All-MiniLM — Neighborhood Aura",
+      "type": "piechart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 18 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT p2.energy AS \"Energy\", COUNT(*) AS \"Count\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_minilm IS NOT NULL AND p1.embedding_minilm IS NOT NULL AND p2.energy IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "groupBy", "options": { "fields": { "Energy": { "aggregations": [], "operation": "groupby" }, "Count": { "aggregations": ["sum"], "operation": "aggregate" } } } }]
+    },
+    {
+      "id": 22,
+      "title": "All-MiniLM — Avg Sentiment",
+      "type": "gauge",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": -0.3 }, { "color": "yellow", "value": -0.1 }, { "color": "green", "value": 0.1 }, { "color": "blue", "value": 0.5 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sub.sentiment)::numeric, 3) AS \"Avg Sentiment\" FROM (SELECT p2.sentiment FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_minilm IS NOT NULL AND p1.embedding_minilm IS NOT NULL AND p2.sentiment IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}) sub",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "BGE-M3  —  1024 dimensions, multilingual dense retrieval",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "collapsed": false
+    },
+    {
+      "id": 30,
+      "title": "BGE-M3 — Nearest Neighbors",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] },
+          { "matcher": { "id": "byName", "options": "Similarity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }, { "id": "min", "value": 0 }, { "id": "max", "value": 1 }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p2.text, 150) AS \"Post Text\", TO_CHAR(p2.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND((1 - (p1.embedding_bge_m3 <=> p2.embedding_bge_m3))::numeric, 4) AS \"Similarity\", ROUND(p2.sentiment::numeric, 2) AS \"Sentiment\", p2.energy AS \"Energy\", p2.intent AS \"Intent\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_bge_m3 IS NOT NULL AND p1.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 31,
+      "title": "BGE-M3 — Neighborhood Aura",
+      "type": "piechart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 27 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT p2.energy AS \"Energy\", COUNT(*) AS \"Count\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_bge_m3 IS NOT NULL AND p1.embedding_bge_m3 IS NOT NULL AND p2.energy IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "groupBy", "options": { "fields": { "Energy": { "aggregations": [], "operation": "groupby" }, "Count": { "aggregations": ["sum"], "operation": "aggregate" } } } }]
+    },
+    {
+      "id": 32,
+      "title": "BGE-M3 — Avg Sentiment",
+      "type": "gauge",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": -0.3 }, { "color": "yellow", "value": -0.1 }, { "color": "green", "value": 0.1 }, { "color": "blue", "value": 0.5 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sub.sentiment)::numeric, 3) AS \"Avg Sentiment\" FROM (SELECT p2.sentiment FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_bge_m3 IS NOT NULL AND p1.embedding_bge_m3 IS NOT NULL AND p2.sentiment IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}) sub",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "Qwen3 Embedding  —  1024 dimensions, reasoning-aware semantic",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "collapsed": false
+    },
+    {
+      "id": 40,
+      "title": "Qwen3 — Nearest Neighbors",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 36 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] },
+          { "matcher": { "id": "byName", "options": "Similarity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }, { "id": "min", "value": 0 }, { "id": "max", "value": 1 }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p2.text, 150) AS \"Post Text\", TO_CHAR(p2.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND((1 - (p1.embedding_qwen3 <=> p2.embedding_qwen3))::numeric, 4) AS \"Similarity\", ROUND(p2.sentiment::numeric, 2) AS \"Sentiment\", p2.energy AS \"Energy\", p2.intent AS \"Intent\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_qwen3 IS NOT NULL AND p1.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 41,
+      "title": "Qwen3 — Neighborhood Aura",
+      "type": "piechart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 36 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT p2.energy AS \"Energy\", COUNT(*) AS \"Count\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_qwen3 IS NOT NULL AND p1.embedding_qwen3 IS NOT NULL AND p2.energy IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "groupBy", "options": { "fields": { "Energy": { "aggregations": [], "operation": "groupby" }, "Count": { "aggregations": ["sum"], "operation": "aggregate" } } } }]
+    },
+    {
+      "id": 42,
+      "title": "Qwen3 — Avg Sentiment",
+      "type": "gauge",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": -0.3 }, { "color": "yellow", "value": -0.1 }, { "color": "green", "value": 0.1 }, { "color": "blue", "value": 0.5 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sub.sentiment)::numeric, 3) AS \"Avg Sentiment\" FROM (SELECT p2.sentiment FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_qwen3 IS NOT NULL AND p1.embedding_qwen3 IS NOT NULL AND p2.sentiment IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}) sub",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "Snowflake Arctic Embed 2  —  1024 dimensions, high-accuracy retrieval",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
+      "collapsed": false
+    },
+    {
+      "id": 50,
+      "title": "Arctic Embed 2 — Nearest Neighbors",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 45 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] },
+          { "matcher": { "id": "byName", "options": "Similarity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }, { "id": "min", "value": 0 }, { "id": "max", "value": 1 }, { "id": "color", "value": { "mode": "continuous-GrYlRd" } }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT LEFT(p2.text, 150) AS \"Post Text\", TO_CHAR(p2.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND((1 - (p1.embedding_arctic2 <=> p2.embedding_arctic2))::numeric, 4) AS \"Similarity\", ROUND(p2.sentiment::numeric, 2) AS \"Sentiment\", p2.energy AS \"Energy\", p2.intent AS \"Intent\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_arctic2 IS NOT NULL AND p1.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 51,
+      "title": "Arctic 2 — Neighborhood Aura",
+      "type": "piechart",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 45 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT p2.energy AS \"Energy\", COUNT(*) AS \"Count\" FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_arctic2 IS NOT NULL AND p1.embedding_arctic2 IS NOT NULL AND p2.energy IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}",
+        "refId": "A"
+      }],
+      "transformations": [{ "id": "groupBy", "options": { "fields": { "Energy": { "aggregations": [], "operation": "groupby" }, "Count": { "aggregations": ["sum"], "operation": "aggregate" } } } }]
+    },
+    {
+      "id": 52,
+      "title": "Arctic 2 — Avg Sentiment",
+      "type": "gauge",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 45 },
+      "fieldConfig": {
+        "defaults": {
+          "min": -1, "max": 1,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": -0.3 }, { "color": "yellow", "value": -0.1 }, { "color": "green", "value": 0.1 }, { "color": "blue", "value": 0.5 }] },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true, "reduceOptions": { "calcs": ["mean"] } },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT ROUND(AVG(sub.sentiment)::numeric, 3) AS \"Avg Sentiment\" FROM (SELECT p2.sentiment FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p2.embedding_arctic2 IS NOT NULL AND p1.embedding_arctic2 IS NOT NULL AND p2.sentiment IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) sub",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "Cross-Model Agreement  —  How much do models agree on what's similar?",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
+      "collapsed": false
+    },
+    {
+      "id": 60,
+      "title": "Neighbor Overlap — Shared posts across model top-N",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH nomic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}), minilm AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}), bge AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}), qwen AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}), arctic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT 'Nomic V2 vs MiniLM' AS \"Model Pair\", COUNT(*) AS \"Shared Neighbors\" FROM nomic n JOIN minilm m ON n.id = m.id UNION ALL SELECT 'Nomic V2 vs BGE-M3', COUNT(*) FROM nomic n JOIN bge b ON n.id = b.id UNION ALL SELECT 'Nomic V2 vs Qwen3', COUNT(*) FROM nomic n JOIN qwen q ON n.id = q.id UNION ALL SELECT 'Nomic V2 vs Arctic 2', COUNT(*) FROM nomic n JOIN arctic a ON n.id = a.id UNION ALL SELECT 'MiniLM vs BGE-M3', COUNT(*) FROM minilm m JOIN bge b ON m.id = b.id UNION ALL SELECT 'MiniLM vs Qwen3', COUNT(*) FROM minilm m JOIN qwen q ON m.id = q.id UNION ALL SELECT 'MiniLM vs Arctic 2', COUNT(*) FROM minilm m JOIN arctic a ON m.id = a.id UNION ALL SELECT 'BGE-M3 vs Qwen3', COUNT(*) FROM bge b JOIN qwen q ON b.id = q.id UNION ALL SELECT 'BGE-M3 vs Arctic 2', COUNT(*) FROM bge b JOIN arctic a ON b.id = a.id UNION ALL SELECT 'Qwen3 vs Arctic 2', COUNT(*) FROM qwen q JOIN arctic a ON q.id = a.id ORDER BY 2 DESC",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 61,
+      "title": "Universal Neighbors — Posts all 5 models agree on",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }
+        ]
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH nomic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}), minilm AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}), bge AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}), qwen AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}), arctic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", ROUND(p.sentiment::numeric, 2) AS \"Sentiment\", p.energy AS \"Energy\" FROM nomic n JOIN minilm m ON n.id = m.id JOIN bge b ON n.id = b.id JOIN qwen q ON n.id = q.id JOIN arctic a ON n.id = a.id JOIN posts p ON p.id = n.id",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "row",
+      "title": "Model Fingerprints  —  What each model uniquely surfaces",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
+      "collapsed": false
+    },
+    {
+      "id": 70,
+      "title": "Unique to Nomic V2 MOE — posts only this model finds similar",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 63 },
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH nomic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors}), others AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", p.energy AS \"Energy\" FROM nomic n LEFT JOIN others o ON n.id = o.id JOIN posts p ON p.id = n.id WHERE o.id IS NULL",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 71,
+      "title": "Unique to MiniLM — posts only this model finds similar",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 63 },
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH minilm AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors}), others AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", p.energy AS \"Energy\" FROM minilm m LEFT JOIN others o ON m.id = o.id JOIN posts p ON p.id = m.id WHERE o.id IS NULL",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 72,
+      "title": "Unique to BGE-M3 — posts only this model finds similar",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 69 },
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH bge AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors}), others AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", p.energy AS \"Energy\" FROM bge b LEFT JOIN others o ON b.id = o.id JOIN posts p ON p.id = b.id WHERE o.id IS NULL",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 73,
+      "title": "Unique to Qwen3 — posts only this model finds similar",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 69 },
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH qwen AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}), others AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", p.energy AS \"Energy\" FROM qwen q LEFT JOIN others o ON q.id = o.id JOIN posts p ON p.id = q.id WHERE o.id IS NULL",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 74,
+      "title": "Unique to Arctic 2 — posts only this model finds similar",
+      "type": "table",
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "threads-pg" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 75 },
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Post Text" }, "properties": [{ "id": "custom.width", "value": 500 }] }] },
+      "targets": [{
+        "format": "table",
+        "rawSql": "WITH arctic AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_arctic2 IS NOT NULL AND p2.embedding_arctic2 IS NOT NULL ORDER BY p1.embedding_arctic2 <=> p2.embedding_arctic2 LIMIT ${neighbors}), others AS (SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding IS NOT NULL AND p2.embedding IS NOT NULL ORDER BY p1.embedding <=> p2.embedding LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_minilm IS NOT NULL AND p2.embedding_minilm IS NOT NULL ORDER BY p1.embedding_minilm <=> p2.embedding_minilm LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_bge_m3 IS NOT NULL AND p2.embedding_bge_m3 IS NOT NULL ORDER BY p1.embedding_bge_m3 <=> p2.embedding_bge_m3 LIMIT ${neighbors} UNION SELECT p2.id FROM posts p1, posts p2 WHERE p1.id = '${post_id}' AND p2.id != p1.id AND p1.embedding_qwen3 IS NOT NULL AND p2.embedding_qwen3 IS NOT NULL ORDER BY p1.embedding_qwen3 <=> p2.embedding_qwen3 LIMIT ${neighbors}) SELECT LEFT(p.text, 150) AS \"Post Text\", TO_CHAR(p.timestamp, 'YYYY-MM-DD') AS \"Date\", p.energy AS \"Energy\" FROM arctic a LEFT JOIN others o ON a.id = o.id JOIN posts p ON p.id = a.id WHERE o.id IS NULL",
+        "refId": "A"
+      }]
+    }
+  ]
+}

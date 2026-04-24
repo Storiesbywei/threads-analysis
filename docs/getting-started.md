@@ -115,7 +115,7 @@ python3 scripts/palace/rename_clusters.py
 
 For the AI navigator:
 ```bash
-ollama pull qwen3:14b
+ollama pull qwen3.5
 python3 scripts/palace/navigate.py --interactive
 ```
 

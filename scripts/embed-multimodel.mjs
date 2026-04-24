@@ -39,12 +39,9 @@ const BATCH_SIZE = parseInt(args['batch-size'] || '50');
 const CONCURRENCY = parseInt(args['concurrency'] || '5');
 
 const MODELS = [
-  { name: 'nomic-embed-text', column: 'embedding', dim: 768 },
+  { name: 'nomic-embed-text-v2-moe', column: 'embedding', dim: 768 },
   { name: 'all-minilm', column: 'embedding_minilm', dim: 384 },
   { name: 'bge-m3', column: 'embedding_bge_m3', dim: 1024 },
-  { name: 'mxbai-embed-large', column: 'embedding_mxbai', dim: 1024 },
-  { name: 'snowflake-arctic-embed', column: 'embedding_snowflake', dim: 1024 },
-  { name: 'granite-embedding:278m', column: 'embedding_granite', dim: 768 },
   { name: 'qwen3-embedding:0.6b', column: 'embedding_qwen3', dim: 1024 },
   { name: 'snowflake-arctic-embed2', column: 'embedding_arctic2', dim: 1024 },
   { name: 'nomic-embed-text-v2-moe', column: 'embedding_nomic2', dim: 768 },

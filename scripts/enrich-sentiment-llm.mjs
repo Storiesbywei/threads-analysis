@@ -1,5 +1,5 @@
 /**
- * enrich-sentiment-llm.mjs — Re-score sentiment using Gemma 4 via Ollama
+ * enrich-sentiment-llm.mjs — Re-score sentiment using MLX (primary) / Ollama (fallback)
  *
  * The original enrich-posts.mjs uses a 39-word bag-of-words heuristic that
  * scores 71% of posts as 0.0. This script uses Gemma to actually understand
@@ -17,9 +17,10 @@
 import pg from 'pg';
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://threads:threads_local_dev@localhost:5433/threads';
+const MLX_URL = process.env.MLX_URL || 'http://localhost:8899';
+const MLX_MODEL = process.env.MLX_MODEL || 'mlx-community/gemma-4-e4b-it-4bit';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const SENTIMENT_MODEL = process.env.SENTIMENT_MODEL || 'qwen3:14b';
-const SENTIMENT_API_URL = process.env.SENTIMENT_API_URL; // optional: OpenAI-compatible endpoint (e.g. http://localhost:8899/v1)
+const OLLAMA_MODEL = process.env.SENTIMENT_MODEL || 'qwen3.5';
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
 
@@ -36,38 +37,46 @@ const BATCH_SIZE = parseInt(args['batch-size'] || '10', 10);
 const ALL = args.all === 'true';
 const DRY_RUN = args['dry-run'] === 'true';
 
-async function askLLM(prompt) {
-  if (SENTIMENT_API_URL) {
-    // OpenAI-compatible endpoint (e.g. mlx-lm serve)
-    const resp = await fetch(`${SENTIMENT_API_URL}/chat/completions`, {
+async function llmGenerate(prompt) {
+  // Try MLX first (OpenAI-compatible API)
+  try {
+    const res = await fetch(`${MLX_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: SENTIMENT_MODEL,
+        model: MLX_MODEL,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0,
-        max_tokens: 300,
+        max_tokens: 1000,
       }),
+      signal: AbortSignal.timeout(60000),
     });
-    if (!resp.ok) throw new Error(`LLM API ${resp.status}`);
-    const data = await resp.json();
-    return data.choices[0].message.content.trim();
-  }
-  // Ollama endpoint
-  const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+    if (res.ok) {
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message || {};
+      const content = msg.content || '';
+      const reasoning = msg.reasoning || '';
+      const text = content.trim() ? content : reasoning;
+      if (text.trim()) return text.trim();
+    }
+  } catch (e) { /* fall through to Ollama */ }
+
+  // Fallback: Ollama
+  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: SENTIMENT_MODEL,
+      model: OLLAMA_MODEL,
       messages: [{ role: 'user', content: prompt }],
       stream: false,
       think: false,
-      options: { temperature: 0, num_predict: 300 },
+      options: { temperature: 0, num_predict: 500 },
     }),
+    signal: AbortSignal.timeout(120000),
   });
-  if (!resp.ok) throw new Error(`Ollama ${resp.status}`);
-  const data = await resp.json();
-  return data.message.content.trim();
+  if (!res.ok) throw new Error(`Ollama ${res.status}`);
+  const data = await res.json();
+  return (data.message?.content || '').trim();
 }
 
 function parseSentiments(response, ids) {
@@ -89,7 +98,7 @@ function parseSentiments(response, ids) {
 }
 
 async function main() {
-  console.log(`Sentiment Re-Scoring — ${SENTIMENT_MODEL}${SENTIMENT_API_URL ? ' (OpenAI-compatible)' : ' (Ollama)'}`);
+  console.log(`Sentiment Re-Scoring — MLX: ${MLX_MODEL} / Ollama fallback: ${OLLAMA_MODEL}`);
   console.log('='.repeat(40));
   console.log(`Mode: ${ALL ? 'ALL posts' : 'only sentiment=0 posts'}`);
   console.log(`Batch size: ${BATCH_SIZE}`);
@@ -147,7 +156,7 @@ ${posts}
 Respond with ONLY numbered scores, one per line (e.g., "1: 0.7"). No explanations.`;
 
     try {
-      const response = await askLLM(prompt);
+      const response = await llmGenerate(prompt);
       const scores = parseSentiments(response, ids);
 
       if (!DRY_RUN) {

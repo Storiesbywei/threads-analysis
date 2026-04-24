@@ -131,7 +131,7 @@ python3 scripts/palace/rename_clusters.py        # Gemma 4 names clusters
 The palace graph is a hierarchical index over your HDBSCAN clusters, adapted from the [babel-palace](https://github.com/Storiesbywei/babel-palace) architecture. Gemma 4 routes through the hierarchy locally (~1,125 tokens per traversal, invisible to the caller).
 
 ```bash
-ollama pull qwen3:14b
+ollama pull qwen3.5
 python3 scripts/palace/navigate.py --interactive
 python3 scripts/palace/navigate.py "what do I post about late at night"
 ```

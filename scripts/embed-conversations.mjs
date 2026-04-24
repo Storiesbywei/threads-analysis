@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * embed-conversations.mjs — Embed conversation reply texts via Ollama nomic-embed-text
+ * embed-conversations.mjs — Embed conversation reply texts via Ollama nomic-embed-text-v2-moe
  *
  * Usage: node scripts/embed-conversations.mjs [--batch-size=100] [--concurrency=10]
  */
@@ -33,7 +33,7 @@ async function embed(text) {
   const res = await fetch(`${OLLAMA_URL}/api/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+    body: JSON.stringify({ model: 'nomic-embed-text-v2-moe', prompt: text }),
   });
   if (!res.ok) throw new Error(`Ollama ${res.status}`);
   const data = await res.json();

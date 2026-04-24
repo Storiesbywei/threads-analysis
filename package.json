@@ -2,7 +2,7 @@
   "name": "threads-analysis",
   "version": "0.1.0",
   "type": "module",
-  "description": "Standalone Threads corpus analysis — information theory, knowledge graphs, discourse taxonomy for @maybe_foucault",
+  "description": "Self-hosted Threads analysis platform — information theory, knowledge graphs, HDBSCAN clustering, sentiment analysis",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -29,6 +29,10 @@
     "haiku:loop": "node scripts/haiku-agent.mjs --loop",
     "genealogy": "node scripts/tech-genealogy.mjs",
     "pedagogy": "node scripts/pedagogy-genealogy.mjs",
+    "pipeline": "node scripts/pipeline.mjs",
+    "pipeline:validate": "node scripts/pipeline-validate.mjs",
+    "pipeline:dry-run": "node scripts/pipeline.mjs --dry-run",
+    "export": "node scripts/export-to-bytheweico.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

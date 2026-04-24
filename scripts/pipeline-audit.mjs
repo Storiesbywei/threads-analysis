@@ -161,7 +161,7 @@ async function testEmbeddings() {
   const [{ embedded }] = await q("SELECT COUNT(*) AS embedded FROM posts WHERE embedding IS NOT NULL");
   const pct = ((parseInt(embedded) / parseInt(total)) * 100).toFixed(1);
 
-  parseInt(embedded) > 0 ? ok(`nomic-embed-text embeddings`, `${embedded}/${total} (${pct}%)`) : bad('nomic-embed-text embeddings');
+  parseInt(embedded) > 0 ? ok(`nomic-embed-text-v2-moe embeddings`, `${embedded}/${total} (${pct}%)`) : bad('nomic-embed-text-v2-moe embeddings');
 
   if (parseFloat(pct) < 99) warning('embedding coverage < 99%', `${pct}% — run npm run embed`);
 
@@ -173,9 +173,6 @@ async function testEmbeddings() {
   const models = [
     { col: 'embedding_minilm', name: 'all-minilm', dim: 384 },
     { col: 'embedding_bge_m3', name: 'bge-m3', dim: 1024 },
-    { col: 'embedding_mxbai', name: 'mxbai-embed-large', dim: 1024 },
-    { col: 'embedding_snowflake', name: 'snowflake-arctic-embed', dim: 1024 },
-    { col: 'embedding_granite', name: 'granite-embedding', dim: 768 },
     { col: 'embedding_qwen3', name: 'qwen3-embedding', dim: 1024 },
     { col: 'embedding_arctic2', name: 'snowflake-arctic-embed2', dim: 1024 },
     { col: 'embedding_nomic2', name: 'nomic-embed-text-v2-moe', dim: 768 },

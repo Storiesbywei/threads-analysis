@@ -2,6 +2,8 @@
 
 import os
 import random
+import time
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -9,7 +11,7 @@ import psycopg2
 import psycopg2.pool
 from flask import request
 from flask_cors import CORS
-from flask_openapi3 import Info, OpenAPI
+from flask_openapi3 import Info, OpenAPI, Tag
 from pydantic import BaseModel, Field
 
 
@@ -29,6 +31,50 @@ info = Info(
 )
 app = OpenAPI(__name__, info=info, doc_prefix="/docs")
 CORS(app)
+
+# ─── Swagger tags ────────────────────────────────────────────────
+stats_tag = Tag(name="Stats", description="Engagement & analytics endpoints")
+meta_tag = Tag(name="Meta", description="API introspection and diagnostics")
+
+# ─── Request logger (in-memory ring buffer) ──────────────────────
+_request_log = deque(maxlen=100)
+
+
+def _shorten_ua(ua):
+    """Extract app name from User-Agent string."""
+    if not ua:
+        return "unknown"
+    for name in ("Shortcuts", "Safari", "Firefox", "Chrome", "curl", "Python", "httpx", "Postman"):
+        if name.lower() in ua.lower():
+            return name
+    return ua.split("/")[0][:20]
+
+
+@app.before_request
+def _log_start():
+    if request.path == "/logs":
+        return
+    request._log_start = time.monotonic()
+
+
+@app.after_request
+def _log_finish(response):
+    if request.path == "/logs":
+        return response
+    start = getattr(request, "_log_start", None)
+    duration = round((time.monotonic() - start) * 1000) if start else 0
+    full_path = request.full_path.rstrip("?")
+    _request_log.appendleft({
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "method": request.method,
+        "path": full_path,
+        "status": response.status_code,
+        "duration_ms": duration,
+        "ip": request.remote_addr,
+        "user_agent": _shorten_ua(request.headers.get("User-Agent", "")),
+    })
+    return response
+
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -364,7 +410,7 @@ def semantic_search():
     ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
     req = urllib.request.Request(
         f"{ollama_url}/api/embeddings",
-        data=_json.dumps({"model": "nomic-embed-text", "prompt": q}).encode(),
+        data=_json.dumps({"model": "nomic-embed-text-v2-moe", "prompt": q}).encode(),
         headers={"Content-Type": "application/json"},
     )
     resp = urllib.request.urlopen(req, timeout=10)
@@ -461,6 +507,27 @@ def stats_top():
         limit=n,
     )
     return posts_response(posts, {"type": "top", "by": by, "n": n})
+
+
+@app.get("/stats/top/recent", summary="Top recent posts by metric", tags=[stats_tag])
+def stats_top_recent():
+    """Top N posts from the last N days by metric. Query params: days (default 3), by (views|likes|replies, default likes), n (default 10)."""
+    days = int(request.args.get("days", 3))
+    by = request.args.get("by", "likes")
+    n = int(request.args.get("n", 10))
+    METRIC_COLS = {"views": "m.views", "likes": "m.likes", "replies": "m.replies"}
+    if by not in METRIC_COLS:
+        return {"error": f"'by' must be one of {set(METRIC_COLS)}"}, 400
+
+    metric_col = METRIC_COLS[by]
+    since = utcnow() - timedelta(days=days)
+    posts = query_posts(
+        f"p.timestamp >= %s AND {metric_col} IS NOT NULL",
+        (since,),
+        order=f"ORDER BY {metric_col} DESC NULLS LAST",
+        limit=n,
+    )
+    return posts_response(posts, {"type": "top_recent", "days": days, "by": by, "n": n, "since": iso(since)})
 
 
 @app.get("/stats/top/today")
@@ -1307,7 +1374,7 @@ def pedagogy_vector_search():
     import urllib.request as ur, json as j
     req = ur.Request(
         os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/embeddings",
-        data=j.dumps({"model": "nomic-embed-text", "prompt": q}).encode(),
+        data=j.dumps({"model": "nomic-embed-text-v2-moe", "prompt": q}).encode(),
         headers={"Content-Type": "application/json"}
     )
     resp = ur.urlopen(req, timeout=10)
@@ -1340,11 +1407,31 @@ def health():
         return {"status": "error", "db": str(e)}, 500
 
 
+@app.get("/logs", summary="Recent API request log", tags=[meta_tag])
+def logs():
+    """Recent API access log (in-memory, last 100 requests)."""
+    n = min(int(request.args.get("n", 100)), 100)
+    path_filter = request.args.get("path", "")
+    entries = list(_request_log)
+    if path_filter:
+        entries = [e for e in entries if e["path"].startswith(path_filter)]
+    entries = entries[:n]
+    query_desc = f"last {n} requests"
+    if path_filter:
+        query_desc += f" matching path={path_filter}"
+    return {
+        "count": len(entries),
+        "generated_at": iso(utcnow()),
+        "query": query_desc,
+        "data": entries,
+    }
+
+
 # ─── LLMs.txt (auto-generated from live routes) ─────────────────
 
 LLMS_HEADER = """# Threads Analysis API
 
-> API for querying ~50K Threads posts by @maybe_foucault. Postgres-backed, pgvector embeddings, Tailscale-accessible.
+> API for querying ~52K items (~43K with text) from @maybe_foucault on Threads. Postgres-backed, pgvector embeddings, Tailscale-accessible. Data syncs every 60 minutes.
 
 ## Base URL
 http://100.71.141.45:4323
@@ -1353,19 +1440,19 @@ http://100.71.141.45:4323
 None required (local network only via Tailscale)
 
 ## Response Format
-All endpoints return JSON: { data, count, query, generated_at }
+All endpoints return JSON: { posts|data, count, query, generated_at }
 
 ## Post Object Fields
-id, text, timestamp, ago, variety (original|reply|quote|repost), tags[], primary_tag, surprise, word_count, permalink, metrics{views,likes,replies}, sentiment (-1 to 1), energy (low|mid|high), intent (statement|reaction|question|share|social|shitpost), language (en|de|vi|es)
+id, text, timestamp, ago, variety (original|reply|quote|repost), tags[], primary_tag, surprise, word_count, permalink, metrics{views,likes,replies}
 
 ## Tags (20 categories)
-philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, shitpost
+philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, unclassified
 
 """
 
 LLMS_MINI_HEADER = """# Threads API — http://100.71.141.45:4323
 
-50K posts by @maybe_foucault. No auth. JSON responses. pgvector embeddings. 58+ endpoints.
+~52K items (~43K with text) by @maybe_foucault. No auth. JSON responses. pgvector embeddings. 64 endpoints. Syncs every 60 min.
 
 """
 

@@ -21,7 +21,7 @@ import psycopg2
 
 DB_URL = os.environ.get('DATABASE_URL', 'postgres://threads:threads_local_dev@localhost:5433/threads')
 OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-GEMMA_MODEL = os.environ.get('GEMMA_MODEL', 'qwen3:14b')
+GEMMA_MODEL = os.environ.get('GEMMA_MODEL', 'qwen3.5')
 
 args = {}
 for a in sys.argv[1:]:

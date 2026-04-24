@@ -1,5 +1,5 @@
 /**
- * embed-posts.mjs — Generate vector embeddings for posts using Ollama nomic-embed-text
+ * embed-posts.mjs — Generate vector embeddings for posts using Ollama nomic-embed-text-v2-moe
  *
  * Processes posts that have text but no embedding, in batches of 10.
  * Usage: node scripts/embed-posts.mjs [--limit=1000]
@@ -26,7 +26,7 @@ async function getEmbedding(text) {
   const res = await fetch(`${OLLAMA_URL}/api/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+    body: JSON.stringify({ model: 'nomic-embed-text-v2-moe', prompt: text }),
   });
   if (!res.ok) {
     const body = await res.text();

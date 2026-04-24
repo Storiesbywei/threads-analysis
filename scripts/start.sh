@@ -9,7 +9,7 @@ echo "Starting threads-analysis stack..."
 docker compose up -d
 echo "  Postgres: localhost:5433"
 
-# 2. Ollama (use homebrew, not Ollama.app — v0.20.2 needed for gemma4)
+# 2. Ollama (use homebrew, not Ollama.app — qwen3.5)
 if ! curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
   /opt/homebrew/bin/ollama serve &>/dev/null &
   sleep 2

@@ -34,10 +34,13 @@ if (fs.existsSync(envPath)) {
 import pg from 'pg';
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgres://threads:threads_local_dev@localhost:5433/threads';
+const MLX_URL = process.env.MLX_URL || 'http://localhost:8899';
+const MLX_MODEL = process.env.MLX_MODEL || 'mlx-community/gemma-4-e4b-it-4bit';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3.5';
 const FLASK_URL = process.env.FLASK_URL || 'http://localhost:4323';
 const ALERT_PHONE = process.env.ALERT_PHONE;
-const HAIKU_MODEL = process.env.HAIKU_MODEL || 'qwen3:14b';
+const HAIKU_MODEL = process.env.HAIKU_MODEL || MLX_MODEL;
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 3 });
 
@@ -53,8 +56,8 @@ function sendIMessage(text) {
     return;
   }
   try {
-    const escaped = text.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-    execSync(`osascript -e 'tell application "Messages" to send "${escaped}" to buddy "${ALERT_PHONE}"'`);
+    const escaped = text.replace(/'/g, "'\\''").replace(/\n/g, '\\n');
+    execSync(`osascript -e 'tell application "Messages" to send "` + escaped.replace(/"/g, '\\"') + `" to buddy "${ALERT_PHONE}"'`);
     console.log('  iMessage sent');
   } catch (e) {
     console.error('  iMessage failed:', e.message);
@@ -100,7 +103,54 @@ async function getRandomPosts() {
   return posts;
 }
 
-// ─── Generate haiku via Ollama ──────────────────────────
+// ─── LLM: MLX primary, Ollama fallback ─────────────────
+
+async function llmGenerate(prompt) {
+  // Try MLX first (OpenAI-compatible API)
+  try {
+    const res = await fetch(`${MLX_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MLX_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1000,
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message || {};
+      const content = msg.content || '';
+      const reasoning = msg.reasoning || '';
+      const text = content.trim() ? content : reasoning;
+      if (text.trim()) {
+        console.log('  (via MLX Gemma 4 E4B)');
+        return text;
+      }
+    }
+  } catch (e) { /* fall through to Ollama */ }
+
+  // Fallback: Ollama
+  console.log('  (MLX unavailable, falling back to Ollama)');
+  const res = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
+      options: { num_predict: 500 },
+    }),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
+  const data = await res.json();
+  const msg = data.message || {};
+  return msg.content || msg.reasoning || '';
+}
+
+// ─── Generate haiku ─────────────────────────────────────
 
 async function generateHaiku(posts) {
   const context = posts.map((p, i) =>
@@ -118,14 +168,7 @@ Rules:
 - Be poetic, not literal
 - Find the unexpected thread connecting these moments`;
 
-  const res = await fetch(`${OLLAMA_URL}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: HAIKU_MODEL, prompt, stream: false }),
-  });
-
-  if (!res.ok) throw new Error(`Ollama error: ${res.status}`);
-  const { response } = await res.json();
+  const response = await llmGenerate(prompt);
 
   // Clean up — extract just the 3 lines
   const lines = response.trim().split('\n')

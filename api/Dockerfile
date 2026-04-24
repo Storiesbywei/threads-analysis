@@ -4,4 +4,4 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 4323
-CMD ["gunicorn", "-b", "0.0.0.0:4323", "-w", "2", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:4323", "-w", "2", "--timeout", "120", "--access-logfile", "-", "app:app"]

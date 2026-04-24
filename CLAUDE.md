@@ -206,6 +206,22 @@ FULL_SYNC_ON_START       # Default: false
 OLLAMA_URL               # Default: http://localhost:11434 (or host.docker.internal in Docker)
 ```
 
+## Local Models
+```yaml
+# Ollama chat models (localhost:11434)
+qwen3.5: 6.6GB (primary, replaces qwen3:14b)
+llama3.2:3b: 2.0GB (lightweight fallback)
+
+# MLX models (in ~/.cache/huggingface/hub/)
+gemma-4-e4b: mlx-community/gemma-4-e4b-it-4bit (4.3GB, 50 tok/s)
+gemma-4-26b: unsloth/gemma-4-26b-a4b-it-UD-MLX-4bit (15.6GB)
+gemma-3-4b: mlx-community/gemma-3-4b-it-4bit
+
+# Ollama embedding models (do NOT change)
+nomic-embed-text-v2-moe: 957MB (primary)
+all-minilm: 45MB (clustering)
+```
+
 ## Conventions
 - ESM modules throughout (`"type": "module"`)
 - Unified event schema: `event_id, ts, ts_iso, source, type, context, health, payload`

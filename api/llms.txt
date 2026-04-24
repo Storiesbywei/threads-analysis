@@ -1,6 +1,6 @@
 # Threads Analysis API
 
-> API for querying ~46K Threads posts by @maybe_foucault. Postgres-backed, Tailscale-accessible.
+> API for querying ~52K items (~43K with text) from @maybe_foucault on Threads. Postgres-backed, pgvector embeddings, Tailscale-accessible. Data syncs every 60 minutes.
 
 ## Base URL
 http://100.71.141.45:4323
@@ -10,71 +10,138 @@ None required (local network only via Tailscale)
 
 ## Response Format
 All endpoints return JSON:
-- `posts`: array of post objects (for post endpoints)
-- `data`: object (for stats/digest endpoints)
+- `posts`: array of post objects (for post-returning endpoints)
+- `data`: object or array (for stats/digest/analysis endpoints)
 - `count`: number of results
 - `query`: what was queried
 - `generated_at`: ISO timestamp
 
 ## Post Object
-- id: string — Threads media ID
-- text: string — post body (max 500 chars)
+- id: string -- Threads media ID
+- text: string|null -- post body (null for reposts)
 - timestamp: ISO string
-- ago: string — human-readable relative time ("2 hours ago")
+- ago: string -- human-readable relative time ("2 hours ago")
 - variety: original | reply | quote | repost
-- tags: string[] — topic tags
-- primary_tag: string — main tag
-- surprise: float — information-theoretic unexpectedness (higher = more unusual)
+- tags: string[] -- topic tags
+- primary_tag: string -- main tag
+- surprise: float -- information-theoretic unexpectedness (higher = more unusual)
 - word_count: int
 - permalink: URL to threads.net
-- metrics: { views, likes, replies, reposts, quotes }
-
-## Endpoints
-
-### Time-Based Queries (most useful for "what did I post...")
-- GET /posts/now — last 30 minutes
-- GET /posts/hour — last hour
-- GET /posts/today — today's posts
-- GET /posts/week — this week
-- GET /posts/month — this month
-- GET /posts/since?minutes=N — last N minutes
-- GET /posts/between?from=ISO&to=ISO — date range
-- GET /posts/latest?n=10 — last N posts
-
-### Search & Discovery
-- GET /posts/search?q=term — full-text search
-- GET /posts/tag/{tag} — posts by tag
-- GET /posts/tag/{tag}/latest?n=5 — latest N in tag
-- GET /posts/random — random post
-- GET /posts/random/{tag} — random post from tag
-- GET /posts/{id} — single post
-
-### Analytics
-- GET /stats/overview — totals, date range, posts today/week/month
-- GET /stats/streak — consecutive posting days
-- GET /stats/top?by=views&n=10 — top posts by metric (views|likes|replies)
-- GET /stats/top/today — most engaged today
-- GET /stats/hourly — posts per hour today
-- GET /stats/daily — posts per day this week
-- GET /stats/tags — all tags with counts and percentages
-- GET /stats/velocity — posting rate (7d, 30d, 90d averages)
-
-### Social
-- GET /social/mentions — top 20 mentioned users
-- GET /social/interactions — interaction summary
-- GET /social/conversations/{post_id} — reply thread
-
-### Knowledge Graph
-- GET /graph/topics — tag clusters
-- GET /graph/related/{tag} — related tags
-
-### Digests (great for Apple Intelligence summaries)
-- GET /digest/today — structured today summary
-- GET /digest/week — weekly summary
-- GET /digest/brief — one natural language paragraph of last 24h
+- metrics: { views, likes, replies } -- 3 fields, available from April 2024 onward
 
 ## Tags (20 categories)
-philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, shitpost
+philosophy, tech, personal, reaction, one-liner, question, media, commentary, finance, meta-social, daily-life, work, food, url-share, sex-gender, race, language, political, creative, unclassified
+
+## Endpoints (64 total)
+
+### Time-Based Queries
+- GET `/posts/now` -- last 30 minutes
+- GET `/posts/hour` -- last hour
+- GET `/posts/today` -- today's posts
+- GET `/posts/week` -- last 7 days
+- GET `/posts/month` -- last 30 days
+- GET `/posts/since?minutes=60` -- last N minutes (default 60)
+- GET `/posts/between?from=ISO&to=ISO` -- date range (both required)
+- GET `/posts/latest?n=10` -- last N posts (default 10)
+
+All time endpoints accept `?limit=500` (max 1000).
+
+### Search & Discovery
+- GET `/posts/search?q=term` -- full-text search (limit 50)
+- GET `/posts/tag/{tag}` -- posts with tag (limit 100)
+- GET `/posts/tag/{tag}/latest?n=5` -- latest N in tag (default 5)
+- GET `/posts/random` -- random post (excludes reposts)
+- GET `/posts/random/{tag}` -- random post from tag
+- GET `/posts/{post_id}` -- single post by ID
+
+### Semantic / Vector Search
+- GET `/posts/similar/{post_id}` -- 10 most similar posts by embedding distance
+- GET `/posts/semantic-search?q=text` -- search by meaning via Ollama embeddings (limit 20)
+
+### Analytics & Stats
+- GET `/stats/overview` -- totals, date range, posts today/week/month
+- GET `/stats/streak` -- consecutive posting days
+- GET `/stats/top?by=views&n=10` -- top posts by metric (views|likes|replies)
+- GET `/stats/top/recent?days=3&by=likes&n=10` -- top posts from last N days by metric
+- GET `/stats/top/today` -- most engaged posts today (by views, limit 10)
+- GET `/stats/hourly` -- posts per hour today
+- GET `/stats/daily` -- posts per day this week
+- GET `/stats/tags` -- all tags with counts and percentages
+- GET `/stats/velocity` -- posting rate (posts/day) over 7, 30, 90 days
+
+### Social
+- GET `/social/mentions` -- top 20 mentioned users (parsed from text)
+- GET `/social/interactions` -- top 30 reply partners (from conversations table)
+- GET `/social/conversations/{post_id}` -- reply thread for a post
+
+### Knowledge Graph
+- GET `/graph/topics` -- tag clusters with connection strengths
+- GET `/graph/related/{tag}` -- tags related to a given tag (top 20 by weight)
+
+### Digests
+- GET `/digest/today` -- structured today summary (variety breakdown, top tags, top post)
+- GET `/digest/week` -- weekly summary (totals, top tags, daily breakdown)
+- GET `/digest/brief` -- one natural-language paragraph of last 24h
+
+### Analysis
+- GET `/analysis/sentiment?window=week&tag=tech` -- sentiment over time (window: day|week|month, tag optional)
+- GET `/analysis/energy?since=ISO` -- energy distribution (low|mid|high), since optional
+- GET `/analysis/intent?since=ISO` -- intent distribution, since optional
+- GET `/analysis/hours` -- posting pattern by hour of day with avg sentiment
+- GET `/analysis/language` -- language distribution across posts
+
+### Genealogy (tech topic tracking)
+- GET `/genealogy/topics` -- all tech topics with frequency and date range
+- GET `/genealogy/timeline?topic=python` -- monthly tech topic frequencies (topic optional)
+- GET `/genealogy/connections?topic=python` -- tech topic co-occurrence graph (topic optional)
+- GET `/genealogy/evolution?topic=python` -- chronological posts mentioning a tech topic (required)
+- GET `/genealogy/brief` -- natural language summary of tech journey
+
+### Pedagogy (teaching/learning topic tracking)
+- GET `/pedagogy/topics` -- all pedagogy topics with frequency and date range
+- GET `/pedagogy/timeline?topic=scaffolding` -- monthly pedagogy topic frequencies (topic optional)
+- GET `/pedagogy/connections?topic=scaffolding` -- pedagogy topic co-occurrence graph (topic optional)
+- GET `/pedagogy/evolution?topic=scaffolding` -- chronological posts on a pedagogy topic (required)
+- GET `/pedagogy/brief` -- natural language summary of pedagogical journey
+- GET `/pedagogy/vector-search?q=text` -- find pedagogical posts by semantic similarity
+
+### Clusters & Palace
+- GET `/clusters?model=all-minilm` -- list all HDBSCAN clusters for a model
+- GET `/clusters/summary?model=all-minilm` -- compact top-5 cluster summary
+- GET `/palace/navigate?q=text&model=all-minilm` -- semantic search through palace graph (limit default 10, max 50)
+- GET `/palace/edges?type=relates_to&limit=30` -- cross-cluster edges by relationship type (limit max 100)
+
+### Haiku
+- GET `/haiku/latest` -- latest haiku with source post graph
+- GET `/haiku/all` -- all haikus with source counts (limit 50)
+
+### Vibe & Mood
+- GET `/vibe/now` -- today's vibe breakdown with percentages
+- GET `/mood` -- current mood: sentiment + energy from last 24h
+- GET `/drift` -- topic drift: what you're posting more/less about vs last month
+- GET `/bridges` -- posts bridging 3+ topic clusters
+- GET `/who-am-i` -- personality snapshot: top tags, sentiment, vibes, energy, peak hours, top people
+
+### Meta
+- GET `/health` -- health check (DB connectivity)
+- GET `/logs` -- recent API access log (in-memory, last 100 requests). `?n=20` for last N, `?path=/posts` to filter by path prefix
+- GET `/models` -- available embedding models with cluster stats
+- GET `/llms.txt` -- this file (auto-generated from live routes)
+- GET `/llms-mini.txt` -- compact version for constrained contexts
+
+## Doc UIs
+- /docs/swagger -- Swagger UI (try-it-out)
+- /docs/redoc -- ReDoc
+- /docs/rapidoc -- RapiDoc
+- /docs/scalar -- Scalar
+- /docs/elements -- Stoplight Elements
+- /docs/rapipdf -- PDF export
+
+## Notes
+- Surprise scores: 0-5 = normal, 5-10 = interesting, 10+ = very unusual
+- Metrics (views, likes, replies) available from April 2024 onward
+- Posts without text (reposts) have text=null
+- Embeddings via nomic-embed-text-v2-moe (Ollama)
 
 ## Example Queries
 
@@ -87,18 +154,38 @@ GET /posts/tag/philosophy/latest?n=20
 "What's my most liked post?"
 GET /stats/top?by=likes&n=1
 
+"What blew up this week?"
+GET /stats/top/recent?days=7&by=views&n=5
+
 "Give me a quick summary"
 GET /digest/brief
 
 "Search for posts about Foucault"
 GET /posts/search?q=foucault
 
+"Find posts similar in meaning to 'surveillance capitalism'"
+GET /posts/semantic-search?q=surveillance%20capitalism
+
 "Who do I talk to the most?"
 GET /social/mentions
 
-## Notes
-- Data syncs every 30 minutes from Threads API
-- Surprise scores: 0-5 = normal, 5-10 = interesting, 10+ = very unusual
-- Posts without text (reposts) have text=null
-- Metrics available from April 2024 onward
-- Swagger UI with try-it-out at /docs
+"What's my vibe today?"
+GET /vibe/now
+
+"Am I in a good mood?"
+GET /mood
+
+"What tech topics am I into lately?"
+GET /genealogy/brief
+
+"How has my interest in Python evolved?"
+GET /genealogy/evolution?topic=python
+
+"What topics am I drifting toward?"
+GET /drift
+
+"Show me a haiku"
+GET /haiku/latest
+
+"Who am I on Threads?"
+GET /who-am-i

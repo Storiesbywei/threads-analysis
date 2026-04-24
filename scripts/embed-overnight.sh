@@ -53,13 +53,13 @@ run_model() {
 
 # Phase 1: Fill remaining gaps on posts (4 models done, 5 to go)
 echo "=== Phase 1: Posts — remaining models ===" | tee -a "$LOG"
-for col in embedding_snowflake embedding_granite embedding_qwen3 embedding_arctic2 embedding_nomic2; do
+for col in embedding_qwen3 embedding_arctic2 embedding_nomic2; do
   run_model posts "$col"
 done
 
 # Phase 2: All 9 models on conversations (use unique column names to avoid substring matches)
 echo "=== Phase 2: Conversations — all models ===" | tee -a "$LOG"
-for col in embedding embedding_minilm embedding_bge_m3 embedding_mxbai embedding_snowflake embedding_granite embedding_qwen3 embedding_arctic2 embedding_nomic2; do
+for col in embedding embedding_minilm embedding_bge_m3 embedding_qwen3 embedding_arctic2 embedding_nomic2; do
   run_model conversations "$col"
 done
 
